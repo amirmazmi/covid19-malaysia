@@ -1,0 +1,1049 @@
+---
+title: "Analysis of Malaysian COVID-19 data from MOH"
+author: "_Amir Azmi &emsp;   29 July 2021_<br><br><hr>"
+#date: "__"
+
+output:
+  html_document:
+    keep_md: yes
+    toc: true
+    toc_float: false
+    css: "style.css"
+
+---
+
+<style>
+    .main-container {
+        width: 95% ;
+        max-width: 1400px ;
+    }
+</style>
+
+```{r setup, include = F}
+knitr::opts_chunk$set(echo = FALSE, fig.height = 6.8, fig.align = "center", message = FALSE, warning = FALSE)
+```
+
+```{r, include = F, cache = F}
+# disclaimer
+# https://github.com/amirmazmi/RepData_PeerAssessment2/blob/master/PA2_template.Rmd
+# https://github.com/amirmazmi/RepData_PeerAssessment1/blob/master/PA1_template.Rmd
+
+library(pacman)
+p_load(dplyr)
+p_load(tidyr)
+p_load(plotly)
+p_load(RColorBrewer)
+p_load(stringr)
+p_load(RcppRoll)
+p_load(lubridate)
+p_load(pals)
+
+relib <- function(){ 
+    source("funcs.R") 
+    cat("\n\n")
+}
+relib()
+
+#-------------------------------------------------------------------------------
+# root directory
+dir_path <- "git repo data/covid19-public/"
+#-------------------------------------------------------------------------------
+```
+
+<br>  
+
+---  
+
+<i><b>Disclaimer:</b>  
+&emsp;All data are correct as at time of publishing and sourced from the official Ministry of Health GitHub repo. The author will not be responsible for any loss or injury arising from the use of the information published here. The views presented here are reflections of the author's thoughts and are not to be taken as recommendations. While the author has attempted to ensure there are no errors or mistakes in the processing and analysis of the data, it is solely the responsibility of the reader to verify and validate the information provided. Any opinions or work derived from the information presented here is not the responsibility of the author. 
+</i>  
+
+<br>
+
+---  
+
+_Last updated on  `r today()` _ and will be updated on a periodic basis
+
+<br>  
+
+Data source : [ https://github.com/MoH-Malaysia/covid19-public ](https://github.com/MoH-Malaysia/covid19-public)  
+Source code : [https://github.com/M](https://github.com/M)
+<br>    
+    
+<p style="text-align: center;">_**All charts are interactive please see top right for option. Lines can also be disabled by clicking on the legend.**_</p>
+
+<br>  
+
+---  
+
+```{r dataprep, include = F, cache = T}
+# events data
+events_generic <- events_gen( showarrow=F, yloc=NA)
+
+#-------------------------------------------------------------------------------
+# NATIONAL level data
+#-------------------------------------------------------------------------------
+
+# daily cases
+df_dailycases <- read.csv( file.path(dir_path, "epidemic", "cases_malaysia.csv"), stringsAsFactors=F) %>% 
+    mutate( 
+        date = ymd(date),
+        dow = wday(date, label=T, abbr=F),
+        cumulative = cumsum(cases_new)
+    ) %>% 
+    select( !contains("cluster"))
+
+bband_wind <- 14
+df_dailycases <- cbind( df_dailycases, bbands( df_dailycases$cases_new, bband_wind) ) %>% 
+    mutate( cumMA = cumsum( coalesce(MA14, 0)) + MA14*0,
+            cumUpper = cumsum( coalesce(upper, 0)) + upper*0,
+            cumLower = cumsum( coalesce(lower, 0)) + lower*0,
+            diffcumband = cumUpper - cumLower
+    )
+ma_col <- grep( "MA[0-9]{1,3}", names(df_dailycases),  value=T)
+
+
+# daily deaths
+df_deaths <- read.csv( file.path(dir_path, "epidemic", "deaths_malaysia.csv"), stringsAsFactors=F) %>% 
+                mutate( date = ymd(date))
+df_deaths <- cbind( df_deaths, bbands( df_deaths$deaths_new, 14) ) %>% 
+    mutate( cumMA = cumsum( coalesce(MA14, 0)) + MA14*0,
+            cumUpper = cumsum( coalesce(upper, 0)) + upper*0,
+            cumLower = cumsum( coalesce(lower, 0)) + lower*0,
+            diffcumband = cumUpper - cumLower
+    )
+ma_col_deaths <- grep( "MA[0-9]{1,3}", names(df_deaths),  value=T)
+
+
+# daily testing
+df_testing <- read.csv( file.path( dir_path, "epidemic", "tests_malaysia.csv"), stringsAsFactors=F)
+names(df_testing) <- names(df_testing) %>% str_replace_all("\\.","_")
+df_testing <- df_testing %>% 
+    mutate( total = rtk_ag + pcr,
+            date = ymd(date),
+            dow = wday( date, label=T, abbr=F))
+
+df_testing <- cbind( df_testing, bbands( df_testing$total, 14))
+test_ma_col <- grep( "MA", names(df_testing),  value=T)
+
+# combine testing and daily cases data 
+df_test_dailycases <- df_testing %>% 
+    select( date, total, dow, ) %>% 
+    full_join( df_dailycases %>% select(date, cases_new), by="date") %>% 
+    mutate( ideal_test=cases_new/0.05)
+
+perc5_line <- max(df_test_dailycases$total, na.rm=T)
+
+
+df_national_checkin <- read.csv( file.path( dir_path, "mysejahtera","checkin_malaysia.csv"), stringsAsFactors=F) %>% 
+    mutate( checkins_per_id = checkins/unique_ind,
+            checkins_per_loc = checkins/unique_loc,
+            date = ymd(date),
+            dow = wday( date, label=T, abbr=F)) %>% 
+    full_join( df_dailycases %>% select(date, cases_new), by="date") %>% 
+    arrange(date)
+
+
+# Time of day MySejahtera checkins 
+t_df_tod_checkins <- read.csv( file.path( dir_path, "mysejahtera", "checkin_malaysia_time.csv"), stringsAsFactors=F) %>% 
+                        mutate( date = ymd(date))
+colnames(t_df_tod_checkins) <- seq( ymd_hm("2021-01-01 00:30"), ymd_hm("2021-01-02 00:00"), by="30 mins") %>%
+                                format("%H%M") %>% 
+                                paste0( "ending", .) %>% 
+                                c( "date",.)
+date_coln <- t_df_tod_checkins$date %>% format( "%Y-%m-%d")
+df_tod_checkins <- t_df_tod_checkins %>% 
+                        select( !contains("date")) %>%
+                        data.table::transpose(.) %>% 
+                        as.data.frame() %>% 
+                        mutate( timestamps = seq( ymd_hm("2021-01-01 00:30"), ymd_hm("2021-01-02 00:00"), by="30 mins") ) %>% 
+                        relocate(timestamps) 
+colnames(df_tod_checkins) <- c( "timestamps", date_coln)
+
+# add mean and stdev for the first X days
+#   indicates changes in behaviour
+cols_sdmean_calc <- ncol(df_tod_checkins) - 43
+# cat( paste0("Start date: ", names(df_tod_checkins)[2], 
+#             "\n  End date: ", names(df_tod_checkins)[cols_sdmean_calc]), 
+#             "\n\n")
+
+df_tod_checkins <- df_tod_checkins %>% 
+    mutate( mean = rowMeans(.[,2:cols_sdmean_calc]),
+            sd = apply(.[,2:cols_sdmean_calc],1,sd),
+            lowerband= mean - sd,
+            upperband= mean + sd
+    )
+```
+
+<br>  
+
+# National Data
+  
+  
+&emsp;&emsp;On 13th July, the daily cases have reached a new high exceeding 10,000 reported cases per day. In the following few days, the cases numbers kept on rising exceeding the 17,000 mark. Despite an accelerating vaccination program, rising cases has caused grave concern in the country and one of the efforts by the MoH was to publish the data.  
+<br>  
+
+
+## Daily Numbers  {.tabset .tabset-pills}
+
+### Daily cases
+
+_`r bband_wind` days rolling window and 2 Std Dev_
+
+```{r dailycases, out.width = '100%'}
+# plot of dailycases - bollinger band
+plot_dailycases <- df_dailycases %>%
+                    plot_ly( x=~date, y=~cases_new, name="<b>Daily cases</b>",
+                             type = "scatter", mode = "lines",
+                             hovertemplate = paste0("%{x|%e %b %Y  %A}", "<br>",
+                                                    "<b>Cases:  %{y:,f}</b>",
+                                                    "<extra></extra>"),
+                             line = list( color="blue", width=2)) %>%
+                    add_lines( y=df_dailycases[,ma_col], name="Moving Average",
+                               line=list(color="red", width=1.2),
+                               hovertemplate = paste0("%{x|%e %b %Y  %A}", "<br>",
+                                                      "Level: %{y:,f}</b>",
+                                                      "<extra></extra>")) %>%
+                    add_lines( y=~upper, name="Upper band", line=list(color="orange", width=1),
+                               hovertemplate = paste0("%{x|%e %b %Y  %A}", "<br>",
+                                                      "Level: %{y:,f}</b>",
+                                                      "<extra></extra>")) %>%
+                    add_lines( y=~lower, name="Lower band", line=list(color="orange", width=1),
+                               hovertemplate = paste0("%{x|%e %b %Y  %A}", "<br>",
+                                                      "Level: %{y:,f}</b>",
+                                                      "<extra></extra>")) %>%
+                    layout( #title = "Daily Cases",
+                            xaxis = list( title = "Date", tickformat = "%e-%b-%Y<br>%A"),
+                            yaxis = list ( title = "Daily cases", tickformat = ",f"),
+                            legend = list( y = 0.95),
+                            shapes = events_generic[[1]], annotations = events_generic[[2]]
+                    )
+plot_dailycases
+```
+
+&emsp;&emsp;In this chart, the <span style="color: blue;">daily cases</span> are applied with a <span style="color: red;">rolling mean</span> and <span style="color: orange;">standard deviation (Bollinger Band)</span> as an indicator to trend formation. Generally used in stock and forex trading, Bollinger band are simple enough that it could be calculated with Excel. Two key features are the data points tracking either the upper or lower band and the widening or contraction of the upper and lower bands.  
+<br>  
+
+__Observations:__  
+
+1. Around 18th to 20th May 2021, <span style="color: bluee;">cases<?span> are tracking the <span style="color: orange;">upper band</b> and a widening of the <span style="color: orange;">upper and lower band</span>, indicating a strong upwards trend. 
+2. Similar trend is observed around 8th to 10th July 2021. 
+3. As of 30th July 2021, the <span style="color: blue;">cases</span> are still on a rise and the bands show no sign of contraction.
+
+<br>  
+
+&emsp;&emsp;As of 30th July 2021, the indication is that the trend has not subsided and will continue to climb until we see a drop in daily cases plus reduction in the width of the bands. An example of this happening can be seen on 1st June 2021, where the rolling implementation of *MCO 3.0* across the nation starting from Kelantan on 16th April 2021, has helped reduce the case numbers.
+
+<br><br><hr><br>  
+
+
+
+
+### Daily Deaths
+_`r bband_wind` days rolling window and 2 Std Dev_
+```{r dailydeaths, out.width = '100%'}
+
+# plot of dailycases - bollinger band
+tsplot_dailydeaths <- df_deaths %>% 
+                        plot_ly( x=~date, y=~deaths_new, name="<b>Daily deaths</b>", 
+                                 type = "scatter", mode = "lines",
+                                 hovertemplate = paste0("%{x|%e %b %Y  %A}", "<br>",
+                                                        "<b>Deaths:  %{y:,f}</b>",
+                                                        "<extra></extra>"),
+                                 line = list( color="blue", width=2)) %>% 
+                        add_lines( y=df_deaths[,ma_col_deaths], name="Moving Average", 
+                                   line=list(color="red", width=1.2),
+                                   hovertemplate = paste0("%{x|%e %b %Y   %A}", "<br>",
+                                                          "Level: %{y:,f}</b>",
+                                                          "<extra></extra>")) %>% 
+                        add_lines( y=~upper, name="Upper band", line=list(color="orange", width=1),
+                                   hovertemplate = paste0("%{x|%e %b %Y  %A}", "<br>",
+                                                          "Level: %{y:,f}</b>",
+                                                          "<extra></extra>")) %>% 
+                        add_lines( y=~lower, name="Lower band", line=list(color="orange", width=1), 
+                                   hovertemplate = paste0("%{x|%e %b %Y  %A}", "<br>",
+                                                          "Level: %{y:,f}</b>",
+                                                          "<extra></extra>")) %>% 
+                        layout( #title = "Daily Deaths",
+                                xaxis = list( title = "Date", tickformat = "%e-%b-%Y<br>%A"),
+                                yaxis = list ( title = "Daily Reported Deaths"),
+                                legend = list( y = 0.95),
+                                shapes = events_generic[[1]], annotations = events_generic[[2]]
+                        )
+tsplot_dailydeaths
+```
+
+__Observations:__  
+
+1. Similarly here, it is observable that the <span style="color: blue;">daily deaths</span> has been increasing, and on the 12th May 2021, the data point exceeded the <span style="color: orange;">upper band</span>. In retrospect, the decision to revert to MCO may have been prudent. 
+2. Note the <span style="color: orange;">Bollinger band</span> contraction from 1st to 10th June 2021, reflecting the decline and a stable width until 4th July 2021 indicating a stabilization. 
+2. The death toll is still rising and the bands show no sign of contraction.
+
+<br>  
+
+&emsp;&emsp;As more and more of the population are being vaccinated, at some point there will be a transition to focus more on the death numbers (or specifically category 3-5 cases) instead of the daily cases since vaccination does not fully prevent infections but does reduce the likelihood of being severely ill.  
+
+&emsp;&emsp; __It is important to note that vaccination will not remove the necessity to control the infection rates as there are still sections of the population that are still not and potentially will not be vaccinated.__ Vaccinated parents may still be infected and spread the virus to their children. This still presents a huge risk and it is the firm hope that we will let common sense prevail. 
+
+<br><br><hr><br>  
+
+
+
+
+### Daily Tests
+_`r bband_wind` days rolling window and 2 Std Dev_
+```{r dailytest, out.width = '100%'}
+tsplot_testing <- df_testing %>% 
+                    plot_ly( x=~date, y=~total, name="<b>Total test</b>",
+                             type="scatter", mode="lines",
+                             hovertemplate = paste0("%{x|%e %b %Y  %A}", "<br>",
+                                                    "<b>Total test:  %{y:,f}</b>",
+                                                    "<extra></extra>"),
+                             line = list( color="blue")) %>% 
+                    add_lines( y=~rtk_ag, name="<b>RTK Antigen</b>", 
+                               line=list(color="dodgerblue", width=1.4),
+                               hovertemplate = paste0("%{x|%e %b %Y  %A}", "<br>",
+                                                      "<b>RTK antigen: %{y:,f}</b>",
+                                                      "<extra></extra>")) %>% 
+                    add_lines( y=~pcr, name="<b>RT-PCR</b>", 
+                               line=list(color="aquamarine3", width=1.4),
+                               hovertemplate = paste0("%{x|%e %b %Y  %A}", "<br>",
+                                                      "<b>RT-PCR: %{y:,f}</b>",
+                                                      "<extra></extra>")) %>% 
+                    add_lines( y=df_testing[,test_ma_col], name="Moving Average", 
+                               line=list(color="red", width=1.2),
+                               hovertemplate = paste0("%{x|%e %b %Y  %A}", "<br>",
+                                                      "Level: %{y:,f}",
+                                                      "<extra></extra>")) %>% 
+                    add_lines( y=~upper, name="Upper band", line=list(color="darkorange", width=1),
+                               hovertemplate = paste0("%{x|%e %b %Y  %A}", "<br>",
+                                                      "Level: %{y:,f}",
+                                                      "<extra></extra>")) %>% 
+                    add_lines( y=~lower, name="Lower band", line=list(color="darkorange", width=1), 
+                               hovertemplate = paste0("%{x|%e %b %Y  %A}", "<br>",
+                                                      "Level: %{y:,f}",
+                                                      "<extra></extra>")) %>% 
+                    layout( #title = "Daily Tests",
+                            xaxis = list( title = "Date", tickformat = "%e-%b-%Y<br>%A"),
+                            yaxis = list ( title = "Daily Reported cases"),
+                            legend = list( y = 0.95),
+                            shapes = events_generic[[1]], annotations = events_generic[[2]]
+                    )
+tsplot_testing
+```
+
+__Observations:__  
+
+1. Cyclical data pattern with dips on Sunday and peaks around mid-week possibly as a result of a typical working week.
+2. The actual number of individuals tested may be lower. Data repesents total test done.
+
+<br>
+
+&emsp;&emsp;For point 2, it is important to note that the <span style="color: blue;">total test</span> number may not necessarily be unique individuals, i.e. the same person may take two types of different tests in a day, as was seen previously at some outbreak areas to quickly identify and isolate those potentially infected. 
+
+<span style="font-size: 0.8em;">\**RT-PCR tests require 1-2 days for results while RTK antigen can be completed in a few hours. These depend heavily on lab capacity and logistics. Recently introduced lateral flow test kits can produce results within 10-30 minutes using either a swab or saliva sample and can be done at home.* </span>
+
+<br><br><hr><br>  
+
+
+
+
+
+
+### Bollinger Band
+
+Generally, Bollinger Bands are used to describe the price movement (forex/stocks) where the price is the balance between the pull of supply (sell) and demand (buy). It is indicative of: 
+
+* price equilibrium represented by a narrow band and a sideways price movement as buy and sell are matched in quantity and price, or  
+* a breakout trend caused by an increase of supply (demand) presented as a data point tracking or exceeding the lower (upper) bands and widening of the bands.
+* the end of a trend (resolution) is presented by the data point breaking away from the bands and contraction of the bands. 
+  
+&emsp;&emsp;As Bollinger Bands are simply rolling averages and standard deviations, they are good indicators to reflect the variability of the data within the rolling window. Specifically, they reflect where the current data point is in relation to the previous x data points.
+
+&emsp;&emsp;When applied to the daily cases, it describes how large the number of people getting infected, or if we relate to the _SIR_ compartmental model, is the number of people moving from _S_ (susceptible) to _I_ (infected). Whilst it would be easy to just say as long as the number today is larger than yesterday so obviously there are more people getting infected, it is important to quantify the change. In this case, it represents that the number of people getting infected are increasing at a rate of approximately 2 standard deviations of the last 14 days data, which is an exponential increase. 
+
+&emsp;&emsp;In the daily deaths chart, this is the number of people moving from the _I_ (infected) to _R_ (removed, through recovery or death - this is differentiated in a _SIRD_ model). 
+
+&emsp;&emsp;The rolling window of 14 was selected based on the smoothness of the moving average and the standard deviations as well as applicability through all three graphs. Any number below 30 will yield approximately similar results however, with increasing size the resolution is lost due to loss of sensitivity (lagging reponse).
+
+<br><br><hr><br>  
+
+
+
+
+
+## Positivity rate {.tabset .tabset-pills}
+
+&emsp;&emsp;There has been much discussion about the positive test rate as per WHO guidelines which states for a maximum 5% positive rate for effective coverage. What is important to note is that the **data for daily cases is not time matched with testing data** as the daily case numbers are when the results are completed from the test labs. Therefore, some variability is expected in relating the daily case numbers directly to the daily testing numbers. While in an ideal situation the positive test data per day be published (with expected delays), in absence of that data, this is the best that can be done. To be clear there is no right or wrong here, just a question of data accuracy and understanding that for any insights gleaned from this view are subject to these errors. 
+
+&emsp;&emsp;Any tests conducted in public and private labs are required to be recorded in the SIMKA (Sistem Informasi Makmal Kesihatan Awam) system and is assumed to be the source of this data.
+
+&emsp;&emsp;However, as will be observed in the data below, testing in general has not grown fast enough to cope with rising case numbers. Previously, MoH stated their focus on RT-PCR testing, deemed as the gold standard. However, that has changed as more RTK antigen test has been performed. In light of recent events, hopefully more field testing can be done using the cheaper lateral flow test kits that are now widely and cheaply available. At the policy level this could be done by distributing a small number, perhaps 2 test kits per household to be done by the person most frequently going out, in areas with high and growing cases with verification done using RT-PCR.
+
+<br>
+  
+\*_Will be updated accordingly if daily positive numbers are made available._
+
+<br>
+
+
+
+### Time Series
+
+```{r positivity-ts, out.width = '100%'}
+# plot time series testing vs cases
+plot_test_dailycases <- df_test_dailycases %>% 
+    plot_ly( type="scatter", mode="lines",
+             x=~date, y=~total, 
+             name="Total test", line = list( color="red", width=1.5),
+             hovertemplate = paste0("%{x|%e %b %Y  %A}", "<br>",
+                                    "<b>Cases: %{y:,f}</b><br>",
+                                    "<extra></extra>")) %>% 
+    # add_lines( y=~total, name="Total test", line = list( color="blue"),
+    #            hovertemplate = paste0("%{x|%e %b %Y<br>%A}", "<br>",
+    #                                   "<b>Cases: %{y:,f}</b><br>",
+    #                                   "<extra></extra>")) %>% 
+    add_lines( y=~ideal_test, name="Testing for 5% ",
+               line=list(color="blue", width=1.2, dash="dot"), #yaxis = "y1",
+               hovertemplate = paste0("%{x|%e %b %Y  %A}", "<br>",
+                                      "<b>Ideal test: %{y:,f}</b><br>",
+                                      "<extra></extra>")) %>% 
+    add_lines( y=~cases_new, name="Daily cases", 
+               line=list(color="black", width=1.3), yaxis = "y2",
+               hovertemplate = paste0("%{x|%e %b %Y  %A}", "<br>",
+                                      "<b>Total tests:  %{y:,f}</b>", "<br>",
+                                      "<extra></extra>")
+    ) %>% 
+    layout( #title = "Daily Cases and Testing",
+            xaxis = list( title = "Date", tickformat = "%e-%b-%Y<br>%A", 
+                          domain = c(0,0.965), showspikes = T, showline = T, 
+                          spikemode = "across+toaxis", spikesnap = "data",
+                          spikedash = "solid", spikecolor = "grey", spikethickness = 0.8),
+            yaxis = list ( title = "Testing", tickformat = ",f", range = c(-15000, 370000)),
+            yaxis2 = list( title= "Daily Cases", tickformat = ",f", range = c(-1500, 37000), 
+                           side="right", overlaying="y", zeroline=F),
+            legend = list( y = 0.95),
+            hovermode = "x",
+            shapes = events_generic[[1]], annotations = events_generic[[2]]
+    )
+
+plot_test_dailycases
+```
+
+__Observations:__  
+
+1. Beyond 19th May 2021, <span style="color: red;">daily testing</span> is below the <span style="color: blue;">5% threshold</span>.
+
+<br><br><hr><br>  
+
+
+
+
+### Correlation
+
+&emsp; _<span style="font-size:0.9em;"><span style="color:DarkGoldenRod;">5% positive</span> line shows minimum number of tests required for 5% positive rate.</span>_
+
+```{r positivity-scatter, out.width = '100%'}
+scatterplot_test_dailycases <- df_test_dailycases %>% filter( complete.cases(.)) %>% 
+                                plot_ly( x=~cases_new, y=~total,
+                                         type="scatter", mode="markers",
+                                         name="Positive Tests",
+                                         marker=list(size=10, symbol=100, color="green"),
+                                         text = ~paste0( format(date, "%e %b %Y %A"), "<br><b>",
+                                                         "Total tests:  ", format( total, big.mark=","), "<br>", 
+                                                         "Daily cases:   ", format( cases_new, big.mark=","), "</b>" ),
+                                         hoverinfo = "text" ) %>% 
+                                add_segments( x = 0, xend=perc5_line*1.1*0.05,
+                                              y = 0, yend=perc5_line*1.1,
+                                              name="5% Positive",
+                                              mode="lines", 
+                                              marker=list(size=0.1, color="orange"),
+                                              line=list(width=1.5, dash="dot", color="orange") ) %>% 
+                                layout( #title = "Line shows min tests required for 5% positive rate",
+                                        xaxis = list( title = "Daily new cases", tickformat = ",f"),
+                                        yaxis = list ( title = "Total tests", tickformat = ",f"),
+                                        legend = list( y = 0.95)
+                                )
+scatterplot_test_dailycases 
+```
+
+&emsp; Chart above shows the correlation between daily tests and daily cases. 
+
+<br>  
+
+__Observations:__  
+
+1. Testing has increased as case numbers increased. 
+2. Points below the <span style="color: DarkGoldenRod;">5% positive</span> line reflects daily test numbers that are below the 5% positivity rate. 
+3. Most of these points are more recent as daily cases have seen a sharp rise.
+
+<br><br><hr><br>  
+
+
+
+
+
+## MySejahtera {.tabset .tabset-pills}
+
+```{r max_unique_index, include = F, cache = T}
+max_unique_index <- df_national_checkin %>% filter( unique_ind == max(unique_ind, na.rm=T))
+```
+
+The app was launched on 20th April 2020 as part of an effort to simplify contact tracing. Its use has also been expanded for vaccine registration. The published data for check-ins starts from 1st December 2020 until present.
+
+* The highest recorded unique check-ins per day was recorded on `r max_unique_index$date %>% format( "<b>%e %B %Y</b>")` at **`r max_unique_index$unique_ind %>% format( big.mark=",")`**. In comparison, the population of Malaysia is approximately 32.6 million and the population of Klang Valley (KL and Selangor) is approximately 8.3 million. 
+* Manual handwritten entries are still allowed at most locations to provide an alternative.
+* There are some privacy concerns as the app requires the input of personal details. The app commits to only storing 90 days worth of data. However, personal details are still potentially stored on the device and/or server and may present a risk. 
+  
+<br>  
+  
+&emsp;&emsp;In March 2020, [Covid Watch][covidwatch], a group of researchers, published a whitepaper detailing an automatic decentralized contact tracing mobile app that protects user anonymity. This has since received funding and has launched in the US. The app communicates via Bluetooth to nearby phones and exchanges random numbers (possibly hashes) as contact events. If a person is found positive, a code will be provided to the user to allow these random numbers to be uploaded to a server where other phones will check if any of their own random numbers matches. The app will notify the owner if they are a close contact. All of these data can be made public without any sensitive information being discovered as none was provided, not even the location.
+
+[covidwatch]: https://blog.covidwatch.org/en/covid-watch-whitepaper-using-crowdsourced-data-to-slow-virus-spread
+
+
+&emsp;&emsp;The data published is an aggregate at national or state level for daily intervals as to protect the privacy of users. However, with the granularity of data available to the authorities, it is possible to develop a graph network of infected cases by collating with the recorded cases. From there it would be possible to use machine learning to model the likelihood of infection for each individual based on the location and duration in any premises. Beyond that, model could be developed for specific locations given that an outbreak in a location is likely to repeat as the virus is passed on, especially now given that there is an increase in asymptomatic cases (this again reiterates the highly sensitive nature of the data being collected). Another potential data source could be an estimate of when the person was infected based on the viral load upon confirmation of a positive test. This would help to determine index cases and execute contact tracing more effectively. Furthermore, an analysis on the role of the environment as a factor in the infection rate may also be possible, such as a comparison of the numbers infected between office spaces versus wide shopping malls. 
+
+&emsp;&emsp;Some potential sources of error include:
+
+1. The definition of a unique index, as a person may still check in using MySejahtera without utilizing the app as the QR code will open a webpage to fill out details.
+2. In the case above, the veracity of the information provided ( whether the person was being honest). 
+3. The definition of a unique location, as a single premise (shopping malls) may have multiple QR codes (parking entry, building entry, individual shops). 
+4. Any individual with more than one mobile phone. 
+
+<br>
+
+
+### Raw data
+
+```{r mysejahtera-data-national, out.width = '100%'}
+events_mysejahtera <- events_gen(startDate="2020-12-01")
+
+tsplot_mysj_data <- df_national_checkin %>% filter(complete.cases(.)) %>% 
+                    plot_ly( type="scatter", mode="lines",
+                             x=~date, y=~checkins, name="Check-ins",
+                             line=list(color="blue", width=2),
+                             hovertemplate = paste0("%{x|%e %b %Y %A}", "<br>",
+                                                      "<b>Check-ins: %{y:,f}</b><br>",
+                                                      "<extra></extra>")) %>% 
+                    add_lines( x=~date, y=~unique_ind, name="Active Unique ID",
+                             line=list(color="green", width=2),
+                             hovertemplate = paste0("%{x|%e %b %Y %A}", "<br>",
+                                                      "<b>Unique ID: %{y:,f}</b><br>",
+                                                      "<extra></extra>")) %>% 
+                    add_lines( x=~date, y=~unique_loc, name="Active Unique <br>Locations",
+                             line=list(color="orange", width=2), yaxis="y2",
+                             hovertemplate = paste0("%{x|%e %b %Y %A}", "<br>",
+                                                      "<b>Unique Locations: %{y:,f}</b><br>",
+                                                      "<extra></extra>")) %>% 
+                    layout( # title = "MySejahtera dataset",
+                            xaxis = list( title = "Date", tickformat = "%e-%b-%Y<br>%A",
+                                          domain = c(0,0.95), showspikes = T, showline = T, 
+                                          spikemode = "across+toaxis", spikesnap = "data",
+                                          spikedash = "solid", spikecolor = "grey", spikethickness = 0.8),
+                            yaxis = list( title = "", tickformat = ",f", range = c(-2*10^6, 35*10^6)),
+                            yaxis2 = list( title = "Locations", tickformat = ",f", 
+                                           side = "right", overlaying = "y", zeroline = F,
+                                           range = c(-9.15*10^4, 1.6*10^6 ) ),
+                            shapes = events_mysejahtera[[1]], annotations = events_mysejahtera[[2]],
+                            hovermode = "x", legend = list( y = 0.95))
+tsplot_mysj_data
+
+
+```
+
+__Observations:__  
+
+1. Each start MCO implementation results in a drop in <span style="color: blue;">check-ins</span>, indicating some level of compliance each time there is a transition.
+2. Prior to each MCO there is also a spike, potentally as people attempt to cram in either last minute shopping or enjoy their last day out of the house. 
+3. The <span style="color: green;">active unique ID</span> does not vary dramatically. It is possible to consider this as a proxy for total registered users. Any increase to the registered users will affect how the data is to be interpreted. As the <span style="color: green;">active unique ID</span> is relatively stable, assume there is minimal to no increase. 
+4. The <span style="color: orange;">active unique locations</span> appears to have a cyclical weekly pattern. The overall number does not seem vary significantly indicating that generally the same places are being visited by the population. 
+5. During MCO2, <span style="color: blue;">check-ins</span> would peak on Saturdays while the unique locations will dip on Sunday. This is possibly due to offices being open and people were back to their daily routine of going out on Saturdays. However, on Sundays the places being visited drop as some offices were closed or the population were generally visiting the same location, such as supermarkets. 
+6. In MCO3, all trends dip on Sunday. 
+
+<br>
+
+&emsp;&emsp;As a note, the location QR code MySejahtera may not be available at all premises as there are possibly some locations, particularly outside ofthe big cities where they rely mostly on manual log logbooks. Also, some events may require their own QR code, e.g. weddings. 
+
+
+<br><br><hr><br>  
+
+
+
+### Daily Numbers
+
+```{r ts-national-checkins, out.width = '100%'}
+# compare check-ins with daily cases
+tsplot_checkin <- df_national_checkin %>% filter( complete.cases(.)) %>% 
+                    plot_ly(type="scatter", mode="lines") %>% 
+                    add_lines( x=~date, y=~checkins, 
+                               line=list(color="blue", width=2),
+                               name="Check-ins", type="scattergl",
+                               hovertemplate = paste0("%{x|%e %b %Y %A}", "<br>",
+                                                      "<b>Check-ins: %{y:,f}</b><br>",
+                                                      "<extra></extra>")) %>% 
+                    add_lines( x=~date, y=~cases_new, name="Daily Cases", 
+                               line=list(color="red", width=2),
+                               yaxis="y2", type="scatter",
+                               hovertemplate = ~paste0("%{x|%e %b %Y %A}", "<br>",
+                                                       "<b>Cases: %{y:,f}</b><br>",
+                                                       "<extra></extra>")) %>% 
+                    layout( # title = "Daily MySejahtera check-ins and Daily Cases [ National ]",
+                            xaxis = list( title = "Date", tickformat = "%e-%b-%Y<br>%A",
+                                          domain = c(0, 0.935),
+                                          showspikes = T, showline = T, 
+                                          spikemode = "across+toaxis", spikesnap = "data",
+                                          spikedash = "solid", spikecolor = "grey", spikethickness = 0.8 ),
+                            yaxis = list( title = "Daily Check-ins", tickformat = ",f", range = c(1.5*10^6, 35*10^6) ),
+                            yaxis2 = list( title= "Daily Cases", tickformat = ",f", range = c(-500, 19*10^3),
+                                           side="right", overlaying="y", zeroline=F ),
+                            shapes = events_mysejahtera[[1]], annotations = events_mysejahtera[[2]],
+                            legend = list( y = 0.95, x = 1),
+                            hovermode = "x", legend = list( y = 0.95) )
+tsplot_checkin
+```
+
+__Observations:__  
+
+1. For the period where interstate travel was allowed, it is noticeable that <span style="color: red;">daily case numbers</span> and <span style="color: blue;">check-ins</span> are somehow correlated (moves upwards together).
+3. During MCO2, the two are inversely correlated (moves towards opposing directions).
+4. In MCO3, no relationship is apparent. The <span style="color: blue;">check-ins</span> are flat regardless of <span style="color: blue;">case numbers</span>.
+
+<br>  
+
+&emsp;&emsp;It is possible to assume that downloading and using the app indicates compliance, it also means that the same users are more likely to comply with the SOP and rules of MCO. Conversely, the users that do not download the app (which represent 2/3rd of the population) are not represented in this data and their compliance is unknown. 
+
+
+<br><br><hr><br>  
+
+
+
+
+### Correlation
+
+&emsp;&emsp;Relationship between daily check-ins and daily cases
+```{r national-checkins-scatter, out.width = '100%'}
+scatter_checkins_dailycases <- df_national_checkin %>% filter( complete.cases(.)) %>% 
+                                plot_ly(x=~checkins, y=~cases_new, 
+                                        marker=list(size=10, symbol=0, color="blue"),
+                                        name="Relationship", type="scatter", mode="markers",
+                                        hovertemplate = ~paste0(format(date, "%e %b %Y %A"), "<br>",
+                                                                "<b>Check-ins: %{x:,f}</b><br>",
+                                                                "<b>  Cases: %{y:,f}</b><br>",
+                                                                "<extra></extra>")) %>% 
+                                add_segments( x = 32*10^6, xend=19.5*10^6, y = 2000, yend=8000,
+                                              name="Trendline 1", mode="lines", 
+                                              marker=list(size=0.1, color="orange"),
+                                              line=list(width=1.5, dash="dot")) %>%
+                                add_segments( x = 19*10^6, xend=19*10^6, 
+                                              y = 8000, yend=1.8*10^4,
+                                              name="Trendline 2", mode="lines", 
+                                              marker=list(size=0.1, color="green"),
+                                              line=list(width=1.7, dash="dot", color="green")) %>%
+                                layout( #title = "Daily MysSejahtera check-ins and Daily Cases [ National ]",
+                                        xaxis = list( title = "Daily Check-ins", tickformat = ",f"),
+                                        yaxis = list( title = "Daily Cases", tickformat = ",f"),
+                                        # shapes = vline( 19*10^6, color="green", dash="dot")
+                                        legend = list( y = 0.95)
+                                )
+scatter_checkins_dailycases
+```
+
+__Observations:__  
+
+1. Check-ins are decreasing/increasing as case numbers rise/fall as indicated by <span style="color: DarkGoldenRod;">trendline 1</span>. This is in line with what was visible during the MCO2 period. 
+2. Vertical non-changing relationship as the check-ins does not change as cases rise/fall indicated by <span style="color: green;">trendline 2</span>
+
+<br>
+
+&emsp;&emsp;Based on intuition, there is some expectation that the check-ins should rise and fall in an inverse relationshiop to the case numbers. However, it does not always seem to hold true. As seen in the previous chart, the inverse relation is during MCO2 while MCO3 was relatively flat.
+
+
+<br><br><hr><br>  
+
+
+
+
+
+### Behaviour
+
+&emsp;&emsp;Relationship between daily check-ins and daily cases split according to event
+```{r national-checkins-behaviour, out.width = '100%'}
+# correlation of daily check-ins vs daily cases based on events
+#   remove school reopens as no trend    
+events_x_school <- events_gen(startDate="2020-12-01", exclude="2021-03-01")
+df_event_x_school <- events_x_school$data
+
+ls_col <- c("orange", "green", "dodgerblue")
+
+scatter_events_checkins_dailycases <- plot_ly( type="scatter", mode="markers")
+for( i in seq(nrow(df_event_x_school))){
+    startDate <- df_event_x_school$date[[i]]
+    endDate <- ifelse( i == nrow(df_event_x_school), "2021-12-31", df_event_x_school$date[[i+1]])
+    # cat("\n", startDate, endDate, "\n\n")        
+    
+    df_event_period<- df_national_checkin %>% 
+                        filter( complete.cases(.)) %>% 
+                        filter( date >= startDate & date < endDate) 
+    # print( df_event_period %>% dim)
+    
+    scatter_events_checkins_dailycases <- scatter_events_checkins_dailycases %>% 
+                                            add_markers( data=df_event_period, x=~checkins, y=~cases_new, 
+                                                         marker=list(size=10, symbol=0, color=ls_col[i]),
+                                                         name=df_event_x_school$label[[i]] %>% str_replace_all("<b>|</b>|<br>", " "),
+                                                         hovertemplate = ~paste0(format(date, "%e %b %Y %A"), "<br>",
+                                                                                 "<b>Check-ins: %{x:,f}</b><br>",
+                                                                                 "<b>Cases: %{y:,f}</b><br>",
+                                                                                 "<extra></extra>")) 
+}
+scatter_events_checkins_dailycases <- scatter_events_checkins_dailycases %>% 
+                                        layout( #title = "Events - Daily MysSejahtera check-ins and Daily Cases [ National ]",
+                                                xaxis = list( title = "Daily Check-ins", tickformat = ",f"),
+                                                yaxis = list( title = "Daily Cases", tickformat = ",f"),
+                                                legend = list( y = 0.95)
+                                        )
+scatter_events_checkins_dailycases
+```
+
+__Observations:__  
+
+1. In December 2020 when <span style="color: DarkGoldenRod;">interstate travel was allowed</span>, the case numbers were quite stable. Yet, note the subdued check-ins as most people were still potentially cautious. Keep in mind the check-in data here is not just reflecting those who actually travelled but the entire population during the relatively relaxed SOP where people are also allowed to move around.   
+2. For <span style="color: green;">MCO2</span>, the trend is clearer for the inverse relationship of check-ins and cases. 
+3. In <span style="color: dodgerblue;">MCO3</span>, it appears that the check-ins are relatively constant. Either people's movement are now insensitive to the case numbers or it simply represents the lower end or minimum movement as people only leave the house for basic necessities.
+
+<br><br><hr><br>  
+
+
+
+
+
+### Check-ins per ID
+
+```{r checkins-per-id, out.width = '100%'}
+
+# compare average check-ins per id with daily cases
+tsplot_checkin_per_id <- df_national_checkin %>% 
+                            filter( complete.cases(.)) %>% 
+                            plot_ly(x=~date, y=~checkins_per_id, 
+                                    line=list(color="blue", width=1),
+                                    name="Check-ins per ID", type="scatter", mode="lines",
+                                    hovertemplate = paste0("%{x|%e %b %Y %A}", "<br>",
+                                                           "<b>Check-ins per ID:  %{y:.2f}</b><br>",
+                                                           "<extra></extra>")) %>% 
+                            add_lines( y=~cases_new, name="Daily Cases", 
+                                       line=list(color="red", width=2),
+                                       yaxis="y2",
+                                       hovertemplate = ~paste0("%{x|%e %b %Y %A}", "<br>",
+                                                               "<b>Cases: %{y:,f}</b><br>",
+                                                               "<extra></extra>")) %>% 
+                            layout( #title = "Daily MysSejahtera check-ins per unique ID",
+                                    xaxis = list( title = "Date", tickformat = "%e-%b-%Y<br>%A", 
+                                                  domain = c( 0, .975)),
+                                    yaxis = list( title = "Check-ins per ID", range=c(1.3, 3.5), tickformat = ".2f"),
+                                    yaxis2 = list( title= "Daily Cases", side="right",
+                                                   overlaying="y", tickformat = ","),
+                                    shapes = events_mysejahtera[[1]], annotations = events_mysejahtera[[2]],
+                                    legend = list( y = 0.95)
+                            )
+tsplot_checkin_per_id
+```
+
+&emsp;&emsp;The chart above describes the <span style="color: blue;">**average** number of check-ins per person</span>. It is derived from dividing the total check-in by the active unique ID in a day. 
+
+<br>
+
+__Observations:__  
+
+1. Overall, the <span style="color: blue;">check-ins per ID</span> range between 2.2 to 3.2. Drawing from personal experience, this is expected are most people are minimizing their trips out of the house and doing all their outside errands in a single day or over the weekend. Note that these reflect behaviour as an aggregate, meaning that if a person visits 6 locations while 4 other persons only checks in once each, the check-ins per person would still average to 2. 
+2. Prior to MCO3, The peaks in the occur mostly during the weekend. 
+3. In MCO3, Monday to Saturday seems to have stable check-ins per ID and drops off on Sunday.
+4. Note the spike on 31st May 2021, the day before MCO3 began.
+
+<br>
+
+&emsp;&emsp;Some interesting points to note are the prevalence of these QR codes, earlier on these were mainly for shops or office premises, on a per entry basis. For shopping malls and most buildings, a QR code would also be placed at each entry of the building. In recent times, to enter a shopping mall may require 2-3 check-ins, once to enter the parking and once to enter the mall itself (another one if you are required to exit from the parking building to the mall building). Obviously this will affect the average value. 
+
+
+<br><br><hr><br>  
+
+
+
+
+
+
+### Check-ins per Location
+
+```{r checkins-per-location, out.width = '100%'}
+
+# compare average check-ins per id with daily cases
+tsplot_checkin_per_loc <- df_national_checkin %>% 
+                            filter( complete.cases(.)) %>% 
+                            plot_ly(x=~date, y=~checkins_per_loc, 
+                                    line=list(color="blue", width=1),
+                                    name="Check-ins per Location", type="scatter", mode="lines",
+                                    hovertemplate = paste0("%{x|%e %b %Y %A}", "<br>",
+                                                           "<b>Check-ins per Location: %{y:,f}</b><br>",
+                                                           "<extra></extra>")) %>% 
+                            add_lines( y=~cases_new, name="Daily Cases", 
+                                       line=list(color="red", width=2),
+                                       yaxis="y2",
+                                       hovertemplate = ~paste0("%{x|%e %b %Y %A}", "<br>",
+                                                               "<b>Cases: %{y:,f}</b><br>",
+                                                               "<extra></extra>")) %>% 
+                            layout( # title = "Daily MySejahtera check-ins per unique location",
+                                    xaxis = list( title = "Date", tickformat = "%e-%b-%Y<br>%A", 
+                                                  domain = c( 0, .975)),
+                                    yaxis = list( title = "Check-ins per Location", range = c(0,55)),
+                                    yaxis2 = list( title= "Daily Cases", tickformat = ",f",
+                                                   range = c(0,2.2*10^4), side="right", overlaying="y" ),
+                                    shapes = events_mysejahtera[[1]], annotations = events_mysejahtera[[2]],
+                                    legend = list( y = 0.95)
+                            )
+tsplot_checkin_per_loc    
+```    
+&emsp;&emsp;The chart above describes the <span style="color: blue;">**average** number of check-ins per active unique location</span>. It is derived from dividing the total check-in by the active unique locations in a day. While the dataset specifies that the unique location indicates premises, conservatively it is possible to assume each QR code represents a specific location instead of an entire premise. This will affect the understanding of the data since if a person is going to several shops within a premise (e.g. supermarket + restaurant + pharmacy), ideally these are considered as a single location yet this quite possibly is not the case. 
+
+<br>
+
+__Observations:__  
+
+1. Spikes in the <span style="color: blue;">average number of check-ins per location</span> occur every Sunday and are up to almost double prior to MCO3. 
+2. During MCO3, the spikes are more subdued at approximately 50% increase with a stable trend.
+3. There is no sharp increase prior to MCO3 as observed in other charts. Indicating that while people are still out and moving around, they are not concentrating at the same places (reminder this is again at an aggregate level, concentration may still occur at specific locations).
+
+
+
+
+<br><br><hr><br>  
+
+
+
+
+
+
+
+## MySejahtera - Time of day {.tabset .tabset-pills}
+
+&emsp;&emsp;Data is also available for total check-ins at every 30 mins intervals. 
+
+<br>
+
+### Time series 
+
+```{r tod-timeseries, out.width = '100%' }
+df_tod_timeseries <- df_tod_checkins %>% 
+                        select( -c("mean", "sd", "lowerband", "upperband")) %>% 
+                        pivot_longer(cols = contains("-"), names_to = "date", values_to = "checkins") %>%
+                        mutate( full_timestamp = timestamps %>% strftime( "%H:%M") %>% paste( date, .) %>% ymd_hm()) %>% 
+                        as.data.frame() %>% 
+                        arrange( full_timestamp)
+
+# plot time series of checkins at 30 mins interval
+tsplot_tod_timeseries <- df_tod_timeseries %>% 
+                            filter( complete.cases(.)) %>% 
+                            plot_ly(x=~full_timestamp, y=~checkins, 
+                                    line=list(color="blue", width=1),
+                                    name="Check-ins", type="scatter", mode="lines",
+                                    hovertemplate = paste0("%{x|%e %b %Y %A}", "<br>",
+                                                           "<b>Check-ins:  %{y:.2f}</b><br>",
+                                                           "<extra></extra>")) %>% 
+                            layout( #title = "MysSejahtera check-ins at 30 mins intervals",
+                                    xaxis = list( title = "Date", tickformat = "%e-%b-%Y<br>%A", 
+                                                  domain = c( 0, .975)),
+                                    yaxis = list( title = "Check-ins", tickformat = ",f"),
+                                    shapes = events_mysejahtera[[1]], annotations = events_mysejahtera[[2]]
+                            )
+tsplot_tod_timeseries
+
+
+
+```
+
+&emsp;&emsp;This chart shows the check-ins at every 30 mins interval. Zooming in will provide a better view of the daily check-in patterns.
+
+<br><br>  
+  
+<br><br>  
+  
+<br><br>    
+  
+<br><br>    
+  
+<br><br>    
+  
+<br><br>    
+  
+<br><br><hr><br>  
+  
+
+
+
+
+
+### Day on Day pattern
+
+```{r dod-plot, out.width = '100%'}
+# https://www.r-bloggers.com/2015/04/create-colorful-graphs-in-r-with-rcolorbrewer-and-plotly/
+#         date
+# 1 2020-12-07   43
+# 2 2021-01-13  139
+# 3 2021-06-01   62
+
+line_pal <- list( c( 43, "Reds"), c( 139, "Blues"), c( 62, "Greens") ) %>% 
+                lapply( function(x){ x[1] %>%  (brewer.pal( 9, x[2])[3:7] %>%  colorRampPalette(colors=.))}) %>% 
+                unlist()
+date_cols <- colnames(df_tod_checkins) %>% grep("-",.,value=T) %>% 
+                cbind( line_pal ) %>% as.data.frame( stringsAsFactors=F) %>% setNames( c("date","line_col"))
+sec_legend <- list( c( 1.87*10^6, "<span style='color: red;'>&#9899;</span> Interstate Travel Allowed"),
+                    c( 1.8*10^6 ,"<span style='color: blue;'>&#9899;</span> MCO2"),
+                    c( 1.73*10^6 ,"<span style='color: green;'>&#9899;</span> MCO3")) %>% 
+                lapply( function(k){ list( x = "2021-01-01 15:00", y = k[1],
+                                           text = k[2], showarrow = F,
+                                           xanchor = "left", font = list( size = 14))})
+
+# plot day on day
+plot_DoD <- df_tod_checkins %>% plot_ly( type="scatter", mode="lines")
+for( i in seq(nrow(date_cols))){
+    plot_DoD <- plot_DoD %>% 
+                add_lines( x=~timestamps, y=df_tod_checkins[, date_cols$date[i]],
+                           data=df_tod_checkins,
+                           name=date_cols$date[i],
+                           line=list( dash="dot", width=1, color=date_cols$line_col[i]),
+                           hovertemplate = paste0("<b>", date_cols$date[i], "</b>   ",
+                                                  "Checkins:  %{y:,f}    ",
+                                                  " Time: %{x|%H:%M}",
+                                                  "<extra></extra>"))
+}
+plot_DoD <- plot_DoD %>% 
+                layout( # title = "Day on Day National MySejahtera Checkins [ 30 minutes granularity ]",
+                        xaxis = list( title = "Time of Day", tickformat = "%H:%M"),
+                        yaxis = list ( title = "Checkins", tickformat = ",f"),
+                        legend = list( y = 0.95), annotations = sec_legend)
+plot_DoD
+
+```
+
+&emsp;&emsp;The chart above shows the check-ins for every 30 mins layered on day by day. The colors are from light to dark indicating progression of days as indicated by the legend (e.g. light green is earlier and dark green is later). 
+
+__Observations:__  
+
+1. The spike between 8:30am to 11:30am is the prior to <span style="color: green;">MCO3</span> on 31st May 2021. The bulk of check-ins on this day are between 5am to 12 noon. In the raw data chart previously, this did not show up a spike in the data as the total checkins for the day are still average. 
+2. Similar half day data drop offs are seen between 27th - 30th May 2021 (indicating this is possible error in the data). 
+3. There is a progression in terms of when people ended their day, especially in <span style="color: green;">MCO3</span> where the check-ins drop off earlier circa 830pm as shops are supposed to be closed at 8pm. This indicates good overall compliance by MySejahtera users. 
+4. Check-ins at night are interesting as these seem to indicate some varying degrees of what can only be assumed as night shift work.
+5. Interestingly, for the period before 1pm the check-ins for <span style="color: green;">MCO3</span> are well above the check-ins when <span style="color: red;">interstate travel was allowed</span>. It is expected to drop more significantly as there were more locations that would have been open. 
+
+
+<br><br><hr><br><br><br>    
+
+
+
+
+
+### Changes over time
+
+```{r tod-changes, out.width = '100%'}
+sec_legend <- list( c( 0.95, "<span style='color: red;'>&#9899;</span> 7am-7pm"),
+                    c( 0.9, "<span style='color: blue;'>&#9899;</span> 8pm - 6am")) %>% 
+                lapply( function(k){ list( x = 0.91, y = k[1], xref = "paper", yref = "paper",
+                                           text = k[2], showarrow = F, 
+                                           xanchor = "left", font = list( size = 14))})
+events_tod <- events_gen("2020-11-25") 
+events_tod[[2]] <- append( events_tod[[2]], sec_legend)
+
+# GnBu and OrRd - 22gap 26gap
+pal_night <- brewer.pal( 9, "GnBu")[4:9] %>%  colorRampPalette(colors=.)     
+pal_day <- brewer.pal( 9, "OrRd")[2:9] %>%  colorRampPalette(colors=.)   
+ls_color <- list( daycount = 0, nightcount = 0, day = pal_day(13), night = pal_night(11))
+
+ls_cols <- names(t_df_tod_checkins %>% select( contains("ending")))
+
+tsplot_tod <- plot_ly( type="scatter", mode="lines") 
+for( k in seq(2, length(ls_cols), by=2)){
+    tod <- ls_cols[k] %>% str_replace("ending","") %>% str_sub(1,2)
+    tod <- ls_cols[k] %>% str_replace("ending","") %>% str_sub(3,4) %>% paste0(tod,":", .) %>%  hm()
+    pick_color <- if( tod >= hm("20:00") | tod < hm("07:00")){
+                        ls_color[["nightcount"]] <- ls_color$nightcount + 1
+                        ls_color$night[ls_color$nightcount]
+                    }else{ 
+                        ls_color[["daycount"]] <- ls_color$daycount + 1
+                        ls_color$day[ls_color$daycount]
+                    }
+    # cat( "\n", ls_cols[k], tod, "\t", pick_color, ls_color$daycount, ls_color$nightcount)
+    tsplot_tod <- tsplot_tod %>% 
+                        add_lines( data=t_df_tod_checkins, 
+                                   x=~date, y=t_df_tod_checkins[,ls_cols[k]],
+                                   line=list( width=1, color=pick_color),
+                                   name=str_replace(ls_cols[k], "ending","") %>% paste0( " hrs"),
+                                   text=str_replace(ls_cols[k], "ending",""),
+                                   hovertemplate = ~paste0("%{x|%e %b %Y %A} ",# "<br>",
+                                                           "<b>%{text} hrs  ", #"<br>",
+                                                           "Checkins: %{y:,f}</b>",
+                                                           "<extra></extra>")
+                        )
+}
+tsplot_tod <- tsplot_tod %>% 
+                    layout( # title = "National MySejahtera Checkins every 30 mins window across dates",
+                            xaxis = list( title = "Date", tickformat = "%e %b %Y<br>%A"),
+                            yaxis = list ( title = "Checkins for 30mins interval", tickformat = ",f"),
+                            shapes = events_tod[[1]], annotations = events_tod[[2]],
+                            legend = list( y = 0.95))
+tsplot_tod
+```
+
+&emsp;&emsp;This view is a sideway view of the previous chart. Data has been trimmed to on the hour data to improve visibility.
+
+__Observations:__  
+
+1. The sharp spike on the 41st May 2021, day prior to MCO3 is still apparent. 
+2. The hours between 7am-12noon are still seeing a surprising increase where the check-ins are similar or higher as prior to MCO2 and are still rising. 
+
+<br><br><hr><br>  
+
+
+
+
+### 3D
+
+[placeholder chart in noon - separate by event]
+```{r 3d-chart, out.width = '100%'}
+df_3d <- df_tod_timeseries %>% arrange( timestamps) #%>% mutate( date = ymd(date))
+
+surface_plot <-  df_3d %>% 
+                    plot_ly( x = ~date, y = ~timestamps, z = ~checkins, 
+                             type = 'scatter3d', mode = 'lines',
+                             line = list( width = 5),
+                             color = ~date, colorscale = line_pal,
+                             hovertemplate = ~paste0("%{x|%e %b %Y %A}", "<br>",
+                                                     "Time of day: %{y| %H:%M}", "<br>",
+                                                     "<b>Check-ins:  %{z:,f}</b>",
+                                                     "<extra></extra>")
+                             ) %>% 
+                    layout(scene = list(xaxis = list(title = 'Date', tickformat = "%e %b %Y"),
+                                        yaxis = list(title = 'Time of Day', tickformat = "%H:%M"),
+                                        zaxis = list(title = 'Check-ins', tickformat = ",f")))
+surface_plot
+
+
+```
+
+<br><br><hr><br><br><br>    
+
+
+
+
+
+
+
+
+
+
+
+
+  
+## <span style="font-size: 0.8em;">Environment info</span>
+```{r sessioninfo}
+sessionInfo()
+```
+
+<div class="tocify-extend-page" data-unique="tocify-extend-page" style="height: 0;"></div>

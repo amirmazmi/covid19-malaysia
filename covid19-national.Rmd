@@ -21,6 +21,10 @@ output:
 
 ```{r setup, include = F}
 knitr::opts_chunk$set(echo = FALSE, fig.height = 6.8, fig.align = "center", message = FALSE, warning = FALSE)
+
+# Created: 25 July 2021
+# Updated: 3 August 2021
+
 ```
 
 ```{r, include = F, cache = F}
@@ -67,7 +71,8 @@ _Last updated on  `r today()` _ and will be updated on a periodic basis
 <br>  
 
 Data source : [ https://github.com/MoH-Malaysia/covid19-public ](https://github.com/MoH-Malaysia/covid19-public)  
-Source code : [https://github.com/M](https://github.com/M)
+Source code : [https://github.com/amirmazmi/covid19-malaysia](https://github.com/amirmazmi/covid19-malaysia)
+
 <br>    
     
 <p style="text-align: center;">_**All charts are interactive please see top right for option. Lines can also be disabled by clicking on the legend.**_</p>
@@ -933,6 +938,10 @@ __Observations:__
 4. Check-ins at night are interesting as these seem to indicate some varying degrees of what can only be assumed as night shift work.
 5. Interestingly, for the period before 1pm the check-ins for <span style="color: green;">MCO3</span> are well above the check-ins when <span style="color: red;">interstate travel was allowed</span>. It is expected to drop more significantly as there were more locations that would have been open. 
 
+  
+<br><br>    
+  
+<br><br>    
 
 <br><br><hr><br><br><br>    
 
@@ -998,6 +1007,11 @@ __Observations:__
 1. The sharp spike on the 41st May 2021, day prior to MCO3 is still apparent. 
 2. The hours between 7am-12noon are still seeing a surprising increase where the check-ins are similar or higher as prior to MCO2 and are still rising. 
 
+  
+<br><br>    
+  
+<br><br>    
+
 <br><br><hr><br>  
 
 
@@ -1005,7 +1019,6 @@ __Observations:__
 
 ### 3D
 
-[placeholder chart in noon - separate by event]
 ```{r 3d-chart, out.width = '100%'}
 df_3d <- df_tod_timeseries %>% arrange( timestamps) #%>% mutate( date = ymd(date))
 
@@ -1026,6 +1039,18 @@ surface_plot
 
 
 ```
+
+&emsp;&emsp;The chart above is a 3D view of the check-ins across a time of day and date axis. 
+
+  
+<br><br>    
+  
+<br><br>    
+  
+<br><br>      
+  
+<br><br>    
+
 
 <br><br><hr><br><br><br>    
 

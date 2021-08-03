@@ -1,0 +1,72 @@
+/*
+
+CSS for Rpubs - MoH Covid Analysis
+    Created: Amir Azmi - 2021-07-29
+    Updated: Amir Azmi - 2021-07-31
+
+https://stackoverflow.com/questions/42546001/how-to-change-colors-and-attributes-of-table-of-contents-in-r-markdown-html-docu
+
+*/
+
+pre {
+    overflow-x: auto;
+}
+
+pre code {
+    word-wrap: normal;
+    white-space: pre;
+    font-size: 0.8em ;
+}
+
+body {
+   font-size: 1.75em ;
+}
+
+h1.title {
+    text-decoration: none ;
+}
+
+h1 {
+    font-weight: bold ;
+}
+
+#TOC {
+    color: DarkBlue ;
+    width: 75% ;
+    align: left ;
+}
+
+/*.toc-content {
+    width: 100% ;
+}*/
+
+/* For mobile screens */
+@media only screen and (max-width: 900px){
+    body, h6 {
+        font-size: 3.3em ;
+    }
+    h1.title {
+        font-size: 2.1em ;
+        font-weight: bold ;
+    }
+    h1 {
+        font-size: 2.2em ;
+        font-weight: bold ;
+    }
+    h2 {
+        font-size: 1.8em ;
+        font-weight: bold ;
+    }
+    h3 {
+        font-size: 1.6em ;
+    }
+    h4 {
+        font-size: 1.3em ;
+    }
+    a {
+        font-size: 0.9em ;
+        white-space: nowrap;
+    }
+
+}
+

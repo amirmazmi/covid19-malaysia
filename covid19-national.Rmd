@@ -1,6 +1,7 @@
 ---
 title: "Analysis of Malaysian COVID-19 data from MOH"
-author: "_Amir Azmi &emsp;   29 July 2021_<br><br><hr>"
+params:
+    set_author: "_Amir Azmi &emsp;   29 July 2021_"
 #date: "__"
 
 output:
@@ -27,7 +28,7 @@ knitr::opts_chunk$set(echo = FALSE, fig.height = 6.8, fig.align = "center", mess
 
 ```
 
-```{r, include = F, cache = F}
+```{r libs, include = F, cache = F}
 # disclaimer
 # https://github.com/amirmazmi/RepData_PeerAssessment2/blob/master/PA2_template.Rmd
 # https://github.com/amirmazmi/RepData_PeerAssessment1/blob/master/PA1_template.Rmd
@@ -54,6 +55,11 @@ dir_path <- "git repo data/covid19-public/"
 #-------------------------------------------------------------------------------
 ```
 
+---  
+author: `r paste(params$set_author, "&emsp;&emsp;[ Last updated ", format(today(),'%e %b %Y'), "]<br><br><hr>")`
+---  
+
+
 <br>  
 
 ---  
@@ -65,8 +71,6 @@ dir_path <- "git repo data/covid19-public/"
 <br>
 
 ---  
-
-_Last updated on  `r today()` _ and will be updated on a periodic basis
 
 <br>  
 
@@ -84,6 +88,9 @@ Source code : [https://github.com/amirmazmi/covid19-malaysia](https://github.com
 ```{r dataprep, include = F, cache = T}
 # events data
 events_generic <- events_gen( showarrow=F, yloc=NA)
+
+# remove school reopens as no trend    
+events_x_school <- events_gen(startDate="2020-12-01", exclude="2021-03-01")
 
 #-------------------------------------------------------------------------------
 # NATIONAL level data
@@ -118,6 +125,14 @@ df_deaths <- cbind( df_deaths, bbands( df_deaths$deaths_new, 14) ) %>%
             diffcumband = cumUpper - cumLower
     )
 ma_col_deaths <- grep( "MA[0-9]{1,3}", names(df_deaths),  value=T)
+
+
+# daily death and daily cases
+df_cases_deaths <- df_dailycases %>% select( date, cases_new) %>% 
+                    full_join( df_deaths %>% select(date, deaths_new), by="date") %>% 
+                    filter( complete.cases(.)) %>% 
+                    mutate( cum_cases = cumsum( cases_new),
+                            cum_deaths = cumsum( deaths_new))
 
 
 # daily testing
@@ -231,9 +246,10 @@ plot_dailycases
 
 __Observations:__  
 
-1. Around 18th to 20th May 2021, <span style="color: bluee;">cases<?span> are tracking the <span style="color: orange;">upper band</b> and a widening of the <span style="color: orange;">upper and lower band</span>, indicating a strong upwards trend. 
+1. Around 18th to 20th May 2021, <span style="color: blue;">cases</span> are tracking the <span style="color: orange;">upper band</span> and a widening of the <span style="color: orange;">upper and lower band</span>, indicating a strong upwards trend. 
 2. Similar trend is observed around 8th to 10th July 2021. 
-3. As of 30th July 2021, the <span style="color: blue;">cases</span> are still on a rise and the bands show no sign of contraction.
+3. As of 30th July 2021, the <span style="color: blue;">cases</span> are still on a rise and the <span style="color: orange;">upper band</span> show no sign of contraction.
+4. As of 2nd August 2021, the <span style="color: blue;">cases</span> have now deviated from the <span style="color: orange;">upper band</span> and the bands are contracting indicating a possible end of the uptick in cases.
 
 <br>  
 
@@ -377,9 +393,81 @@ Generally, Bollinger Bands are used to describe the price movement (forex/stocks
 
 
 
+### Deaths vs Cases
+
+```{r death-vs-cases, out.width = '100%'}
+events_no_school <- events_gen( exclude="2021-03-01")$data
+
+yaxis_control <- 1.25*10^6
+ls_death_rate <- seq(0.01, 0, by=-0.002) %>% lapply( function(x){ x*yaxis_control})
+marker_cols <- nrow(events_no_school) %>% (brewer.pal( 8, "Dark2") %>% colorRampPalette(colors=.))    # c("orange", "green", "dodgerblue") 
+line_colors <- 5 %>% (brewer.pal( 9, "Greens") %>%  colorRampPalette(colors=.)) %>% rev
+
+# scatterplot cases vs deaths
+scatter_cases_deaths <- plot_ly( type="scatter", mode="lines+markers")
+for( k in seq(nrow(events_no_school))){
+    startDate <- ifelse( k == 1, "2020-11-30", events_no_school$date[[k]])
+    endDate <- ifelse( k == nrow(events_no_school), "2021-12-31", events_no_school$date[[k+1]])
+    df_event_period<- df_cases_deaths %>% 
+                        filter( complete.cases(.)) %>% 
+                        filter( date >= startDate & date < endDate) 
+    scatter_cases_deaths <- scatter_cases_deaths %>% 
+                                add_markers( x=~cum_cases, y=~cum_deaths, data=df_event_period,
+                                             name=events_no_school$event[k],
+                                             marker=list(size=14, symbol=100, color=marker_cols[k]),
+                                             hovertemplate=~paste0( format(date, "%e %b %Y %A"), "<br><b>",
+                                                                    "Deaths:  %{x: ,f}", "<br>", 
+                                                                    "Cases:         %{y: ,f}", "</b>" )
+                                             )
+}
+for( i in seq(0.012, 0.002, by=-0.002)){
+    scatter_cases_deaths <- scatter_cases_deaths %>%
+                            add_segments( x=0, xend=yaxis_control, y=0, yend=yaxis_control*i,
+                                          name=format(i*100, nsmall=1) %>% paste0("% rate"),
+                                          mode="lines", marker=NULL,
+                                          line=list( width=1, dash="dot" )
+                                          )
+}
+scatter_cases_deaths <- scatter_cases_deaths %>% 
+                            layout( #title = "Line shows min tests required for 5% positive rate",
+                                    xaxis = list( title = "Cumulative Cases", tickformat = ",f",
+                                                  range = c(-10^5, yaxis_control)),
+                                    yaxis = list ( title = "Cumulative Deaths", tickformat = ",f",
+                                                  range = c(-10^3, yaxis_control*0.01)),
+                                    legend = list( y = 0.95)
+                            )
+scatter_cases_deaths
+```
+
+__Observations:__  
+
+1. Initially, the trend starts at a very high rate and slowly settles to around 0.4% at the end of December 2020. Later on around May 2021, this deviates upwards to currently just above 0.8% death rate. 
+2. The distance between the circles indicates the speed at which the axis increases. If the distance between cirlces in the x-axis is spread out, means that Cumulative Cases are increasing rapidly and the opposite is true.
+3. Notably, <span style="color: green;">MCO2</span> and followed by <span style="color: blue;">MCO3</span> has seen an increase in cases and and deaths rapidly given the circles are more spread out as compared to the previous periods. 
+
+<br>
+
+We can make some assumptions that deaths are driven by multiple external factors which are not related to the indvidual. Potentially a model can be built to quantify these relationships better. 
+
+1. Infection rates or daily cases - higher spread causes more high risk people to be infected and subsequently lose their lives. 
+2. Vaccination rates - theoretically inversely correlated to deaths as vaccinated persons typically do not suffer from illness, only mild symptoms. 
+3. Hospital capacity - inversely correlated with an upper limit where if the hospital capacity is maxed out, it is expected that deaths will begin to rise exponentially.
+
+<br>
+
+&emsp;&emsp;It is important to note that most effects are exponential, e.g. infection rates, death rates, hence the reason that earlier efforts to flatten the curve was critical and effective. 
+
+<br><br><hr><br>  
+
+
+
+
+
+
+
 ## Positivity rate {.tabset .tabset-pills}
 
-&emsp;&emsp;There has been much discussion about the positive test rate as per WHO guidelines which states for a maximum 5% positive rate for effective coverage. What is important to note is that the **data for daily cases is not time matched with testing data** as the daily case numbers are when the results are completed from the test labs. Therefore, some variability is expected in relating the daily case numbers directly to the daily testing numbers. While in an ideal situation the positive test data per day be published (with expected delays), in absence of that data, this is the best that can be done. To be clear there is no right or wrong here, just a question of data accuracy and understanding that for any insights gleaned from this view are subject to these errors. 
+&emsp;&emsp;There has been much discussion about the positive test rate as per WHO guidelines which states for a maximum 5% positive rate for effective coverage. What is important to note is that the **data for daily cases is not time matched with testing data** as the daily case numbers are when the results are completed from the test labs. Therefore, some variability is expected in relating the daily case numbers directly to the daily testing numbers. While in an ideal situation the positive test data per day be published (with expected delays), in absence of that data, this is the best that can be done. This is worth noting as the data collection process affects the accuracy and understanding that for any insights gleaned from this view are subject to these errors. 
 
 &emsp;&emsp;Any tests conducted in public and private labs are required to be recorded in the SIMKA (Sistem Informasi Makmal Kesihatan Awam) system and is assumed to be the source of this data.
 
@@ -393,9 +481,11 @@ Generally, Bollinger Bands are used to describe the price movement (forex/stocks
 
 
 
+
+
 ### Time Series
 
-```{r positivity-ts, out.width = '100%'}
+```{r positivity-ts, out.width = '100%'} 
 # plot time series testing vs cases
 plot_test_dailycases <- df_test_dailycases %>% 
     plot_ly( type="scatter", mode="lines",
@@ -444,6 +534,7 @@ __Observations:__
 
 
 
+
 ### Correlation
 
 &emsp; _<span style="font-size:0.9em;"><span style="color:DarkGoldenRod;">5% positive</span> line shows minimum number of tests required for 5% positive rate.</span>_
@@ -462,7 +553,7 @@ scatterplot_test_dailycases <- df_test_dailycases %>% filter( complete.cases(.))
                                               y = 0, yend=perc5_line*1.1,
                                               name="5% Positive",
                                               mode="lines", 
-                                              marker=list(size=0.1, color="orange"),
+                                              marker=NULL, #list(size=0.1, color="orange"),
                                               line=list(width=1.5, dash="dot", color="orange") ) %>% 
                                 layout( #title = "Line shows min tests required for 5% positive rate",
                                         xaxis = list( title = "Daily new cases", tickformat = ",f"),
@@ -568,7 +659,7 @@ __Observations:__
 
 <br>
 
-&emsp;&emsp;As a note, the location QR code MySejahtera may not be available at all premises as there are possibly some locations, particularly outside ofthe big cities where they rely mostly on manual log logbooks. Also, some events may require their own QR code, e.g. weddings. 
+&emsp;&emsp;As a note, the location QR code MySejahtera may not be available at all premises as there are possibly some locations, particularly outside of the big cities where they rely mostly on manual log logbooks. Also, some events may require their own QR code, e.g. weddings. 
 
 
 <br><br><hr><br>  
@@ -612,7 +703,7 @@ __Observations:__
 
 1. For the period where interstate travel was allowed, it is noticeable that <span style="color: red;">daily case numbers</span> and <span style="color: blue;">check-ins</span> are somehow correlated (moves upwards together).
 3. During MCO2, the two are inversely correlated (moves towards opposing directions).
-4. In MCO3, no relationship is apparent. The <span style="color: blue;">check-ins</span> are flat regardless of <span style="color: blue;">case numbers</span>.
+4. In MCO3, no relationship is apparent. The <span style="color: blue;">check-ins</span> are flat regardless of <span style="color: red;">case numbers</span>. These are potentially related to the business which are allowed to operate during this period. 
 
 <br>  
 
@@ -638,12 +729,12 @@ scatter_checkins_dailycases <- df_national_checkin %>% filter( complete.cases(.)
                                                                 "<extra></extra>")) %>% 
                                 add_segments( x = 32*10^6, xend=19.5*10^6, y = 2000, yend=8000,
                                               name="Trendline 1", mode="lines", 
-                                              marker=list(size=0.1, color="orange"),
+                                              marker=NULL, #list(size=0.1, color="orange"),
                                               line=list(width=1.5, dash="dot")) %>%
                                 add_segments( x = 19*10^6, xend=19*10^6, 
                                               y = 8000, yend=1.8*10^4,
                                               name="Trendline 2", mode="lines", 
-                                              marker=list(size=0.1, color="green"),
+                                              marker=NULL, #list(size=0.1, color="green"),
                                               line=list(width=1.7, dash="dot", color="green")) %>%
                                 layout( #title = "Daily MysSejahtera check-ins and Daily Cases [ National ]",
                                         xaxis = list( title = "Daily Check-ins", tickformat = ",f"),
@@ -675,15 +766,12 @@ __Observations:__
 &emsp;&emsp;Relationship between daily check-ins and daily cases split according to event
 ```{r national-checkins-behaviour, out.width = '100%'}
 # correlation of daily check-ins vs daily cases based on events
-#   remove school reopens as no trend    
-events_x_school <- events_gen(startDate="2020-12-01", exclude="2021-03-01")
 df_event_x_school <- events_x_school$data
-
 ls_col <- c("orange", "green", "dodgerblue")
 
 scatter_events_checkins_dailycases <- plot_ly( type="scatter", mode="markers")
 for( i in seq(nrow(df_event_x_school))){
-    startDate <- df_event_x_school$date[[i]]
+    startDate <- ifelse( i == 1, "2020-11-30", df_event_x_school$date[[i]])
     endDate <- ifelse( i == nrow(df_event_x_school), "2021-12-31", df_event_x_school$date[[i+1]])
     # cat("\n", startDate, endDate, "\n\n")        
     
@@ -712,8 +800,8 @@ scatter_events_checkins_dailycases
 
 __Observations:__  
 
-1. In December 2020 when <span style="color: DarkGoldenRod;">interstate travel was allowed</span>, the case numbers were quite stable. Yet, note the subdued check-ins as most people were still potentially cautious. Keep in mind the check-in data here is not just reflecting those who actually travelled but the entire population during the relatively relaxed SOP where people are also allowed to move around.   
-2. For <span style="color: green;">MCO2</span>, the trend is clearer for the inverse relationship of check-ins and cases. 
+1. In December 2020 when <span style="color: DarkGoldenRod;">interstate travel was allowed</span>, the case numbers were quite stable. Yet, note the subdued check-ins as most people were still potentially cautious. Keep in mind the check-in data here is not just reflecting those who actually travelled but the entire population during the relatively relaxed SOP where people were also allowed to move around.   
+2. For <span style="color: green;">MCO2</span>, a clear trend is observed describing an inverse relationship of check-ins and cases. 
 3. In <span style="color: dodgerblue;">MCO3</span>, it appears that the check-ins are relatively constant. Either people's movement are now insensitive to the case numbers or it simply represents the lower end or minimum movement as people only leave the house for basic necessities.
 
 <br><br><hr><br>  
@@ -761,7 +849,7 @@ __Observations:__
 
 1. Overall, the <span style="color: blue;">check-ins per ID</span> range between 2.2 to 3.2. Drawing from personal experience, this is expected are most people are minimizing their trips out of the house and doing all their outside errands in a single day or over the weekend. Note that these reflect behaviour as an aggregate, meaning that if a person visits 6 locations while 4 other persons only checks in once each, the check-ins per person would still average to 2. 
 2. Prior to MCO3, The peaks in the occur mostly during the weekend. 
-3. In MCO3, Monday to Saturday seems to have stable check-ins per ID and drops off on Sunday.
+3. In MCO3, Monday to Saturday seems to have stable <span style="color: blue;">check-ins per ID</span> and drops off on Sunday.
 4. Note the spike on 31st May 2021, the day before MCO3 began.
 
 <br>
@@ -885,7 +973,7 @@ tsplot_tod_timeseries
 
 
 
-### Day on Day pattern
+### Day-on-Day pattern
 
 ```{r dod-plot, out.width = '100%'}
 # https://www.r-bloggers.com/2015/04/create-colorful-graphs-in-r-with-rcolorbrewer-and-plotly/
@@ -894,11 +982,14 @@ tsplot_tod_timeseries
 # 2 2021-01-13  139
 # 3 2021-06-01   62
 
-line_pal <- list( c( 43, "Reds"), c( 139, "Blues"), c( 62, "Greens") ) %>% 
+date_cols <- colnames(df_tod_checkins) %>% grep("-",.,value=T) 
+
+run_length <- date_cols[ which( date_cols >= events_x_school$data$date[3])] %>% length
+
+line_pal <- list( c( 43, "Reds"), c( 139, "Blues"), c( run_length, "Greens") ) %>% 
                 lapply( function(x){ x[1] %>%  (brewer.pal( 9, x[2])[3:7] %>%  colorRampPalette(colors=.))}) %>% 
                 unlist()
-date_cols <- colnames(df_tod_checkins) %>% grep("-",.,value=T) %>% 
-                cbind( line_pal ) %>% as.data.frame( stringsAsFactors=F) %>% setNames( c("date","line_col"))
+date_cols <- date_cols %>% cbind( line_pal ) %>% as.data.frame( stringsAsFactors=F) %>% setNames( c("date","line_col"))
 sec_legend <- list( c( 1.87*10^6, "<span style='color: red;'>&#9899;</span> Interstate Travel Allowed"),
                     c( 1.8*10^6 ,"<span style='color: blue;'>&#9899;</span> MCO2"),
                     c( 1.73*10^6 ,"<span style='color: green;'>&#9899;</span> MCO3")) %>% 
@@ -942,7 +1033,9 @@ __Observations:__
 <br><br>    
   
 <br><br>    
-
+   
+<br><br>    
+  
 <br><br><hr><br><br><br>    
 
 
@@ -1004,7 +1097,7 @@ tsplot_tod
 
 __Observations:__  
 
-1. The sharp spike on the 41st May 2021, day prior to MCO3 is still apparent. 
+1. The sharp spike on the 31st May 2021, day prior to MCO3 is still apparent. 
 2. The hours between 7am-12noon are still seeing a surprising increase where the check-ins are similar or higher as prior to MCO2 and are still rising. 
 
   
@@ -1012,6 +1105,10 @@ __Observations:__
   
 <br><br>    
 
+<br><br>    
+  
+<br><br>    
+  
 <br><br><hr><br>  
 
 
@@ -1025,8 +1122,8 @@ df_3d <- df_tod_timeseries %>% arrange( timestamps) #%>% mutate( date = ymd(date
 surface_plot <-  df_3d %>% 
                     plot_ly( x = ~date, y = ~timestamps, z = ~checkins, 
                              type = 'scatter3d', mode = 'lines',
-                             line = list( width = 5),
-                             color = ~date, colorscale = line_pal,
+                             line = list( width = 5, colorscale = line_pal),
+                             color = ~date,
                              hovertemplate = ~paste0("%{x|%e %b %Y %A}", "<br>",
                                                      "Time of day: %{y| %H:%M}", "<br>",
                                                      "<b>Check-ins:  %{z:,f}</b>",
@@ -1040,19 +1137,21 @@ surface_plot
 
 ```
 
-&emsp;&emsp;The chart above is a 3D view of the check-ins across a time of day and date axis. 
+&emsp;&emsp;The chart above is a 3D view of the check-ins which combines the two previous charts of changes over time and day on day. It better reflects the check-ins at different times of the day and how it progressively changes over time.
 
+<br><br>  
+  
+<br><br>  
   
 <br><br>    
   
 <br><br>    
   
-<br><br>      
+<br><br>    
   
 <br><br>    
-
-
-<br><br><hr><br><br><br>    
+  
+<br><br><hr><br>  
 
 
 

@@ -10,15 +10,11 @@ output:
     toc: true
     toc_float: false
     css: "style.css"
+    # includes:
+        # in_header: template.html
 
 ---
-
-<style>
-    .main-container {
-        width: 95% ;
-        max-width: 1400px ;
-    }
-</style>
+`r paste( readLines("inserts.txt"), collapse="\n")`
 
 ```{r setup, include = F}
 knitr::opts_chunk$set(echo = FALSE, fig.height = 6.8, fig.align = "center", message = FALSE, warning = FALSE)
@@ -51,7 +47,7 @@ relib()
 
 #-------------------------------------------------------------------------------
 # root directory
-dir_path <- "git repo data/covid19-public/"
+dir_path <- "repo covid19-public"
 #-------------------------------------------------------------------------------
 ```
 
@@ -72,8 +68,6 @@ author: `r paste(params$set_author, "&emsp;&emsp;[ Last updated ", format(today(
 
 ---  
 
-<br>  
-
 Data source : [ https://github.com/MoH-Malaysia/covid19-public ](https://github.com/MoH-Malaysia/covid19-public)  
 Source code : [https://github.com/amirmazmi/covid19-malaysia](https://github.com/amirmazmi/covid19-malaysia)
 
@@ -85,7 +79,7 @@ Source code : [https://github.com/amirmazmi/covid19-malaysia](https://github.com
 
 ---  
 
-```{r dataprep, include = F, cache = T}
+```{r dataprep, include = F, cache = F}
 # events data
 events_generic <- events_gen( showarrow=F, yloc=NA)
 
@@ -439,6 +433,8 @@ scatter_cases_deaths <- scatter_cases_deaths %>%
 scatter_cases_deaths
 ```
 
+Each circle represents daily data.
+
 __Observations:__  
 
 1. Initially, the trend starts at a very high rate and slowly settles to around 0.4% at the end of December 2020. Later on around May 2021, this deviates upwards to currently just above 0.8% death rate. 
@@ -600,7 +596,7 @@ The app was launched on 20th April 2020 as part of an effort to simplify contact
 
 &emsp;&emsp;The data published is an aggregate at national or state level for daily intervals as to protect the privacy of users. However, with the granularity of data available to the authorities, it is possible to develop a graph network of infected cases by collating with the recorded cases. From there it would be possible to use machine learning to model the likelihood of infection for each individual based on the location and duration in any premises. Beyond that, model could be developed for specific locations given that an outbreak in a location is likely to repeat as the virus is passed on, especially now given that there is an increase in asymptomatic cases (this again reiterates the highly sensitive nature of the data being collected). Another potential data source could be an estimate of when the person was infected based on the viral load upon confirmation of a positive test. This would help to determine index cases and execute contact tracing more effectively. Furthermore, an analysis on the role of the environment as a factor in the infection rate may also be possible, such as a comparison of the numbers infected between office spaces versus wide shopping malls. 
 
-&emsp;&emsp;Some potential sources of error include:
+Some potential sources of error include:
 
 1. The definition of a unique index, as a person may still check in using MySejahtera without utilizing the app as the QR code will open a webpage to fill out details.
 2. In the case above, the veracity of the information provided ( whether the person was being honest). 
@@ -990,12 +986,12 @@ line_pal <- list( c( 43, "Reds"), c( 139, "Blues"), c( run_length, "Greens") ) %
                 lapply( function(x){ x[1] %>%  (brewer.pal( 9, x[2])[3:7] %>%  colorRampPalette(colors=.))}) %>% 
                 unlist()
 date_cols <- date_cols %>% cbind( line_pal ) %>% as.data.frame( stringsAsFactors=F) %>% setNames( c("date","line_col"))
-sec_legend <- list( c( 1.87*10^6, "<span style='color: red;'>&#9899;</span> Interstate Travel Allowed"),
-                    c( 1.8*10^6 ,"<span style='color: blue;'>&#9899;</span> MCO2"),
-                    c( 1.73*10^6 ,"<span style='color: green;'>&#9899;</span> MCO3")) %>% 
+sec_legend <- list( c( 1.87*10^6, "Interstate Travel Allowed", "red"),
+                    c( 1.8*10^6 ,"MCO2", "blue"),
+                    c( 1.73*10^6 ,"MCO3", "green")) %>% 
                 lapply( function(k){ list( x = "2021-01-01 15:00", y = k[1],
                                            text = k[2], showarrow = F,
-                                           xanchor = "left", font = list( size = 14))})
+                                           xanchor = "left", font = list( size = 14, color =k[3]))})
 
 # plot day on day
 plot_DoD <- df_tod_checkins %>% plot_ly( type="scatter", mode="lines")
@@ -1165,7 +1161,7 @@ surface_plot
 
 
   
-## <span style="font-size: 0.8em;">Environment info</span>
+# <span style="font-size: 0.8em;">Environment info</span>
 ```{r sessioninfo}
 sessionInfo()
 ```

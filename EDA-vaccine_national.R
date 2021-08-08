@@ -145,7 +145,7 @@ cumplot_vax <- df_vax %>%
                 add_lines( x=~date, y=~total_reg, name="Registered for<br>Vaccination", 
                            hovertemplate = paste0("<b>Registered:  %{y:,f}</b>",
                                                   "<extra></extra>"),
-                           line = list( color="red", width=2)) %>%
+                           line = list( color="red", width=6)) %>%
                 add_lines( x=~date, y=~dose1_cumul, name="Dose 1", 
                            hovertemplate = paste0("<b>Dose 1:  %{y:,f}</b>",
                                                   "<extra></extra>"),
@@ -189,7 +189,7 @@ cumplot_perc_pop_vax <- df_vax %>%
                         add_lines( x=~date, y=~total_reg_pop_perc, name="Registered for<br>Vaccination", 
                                    hovertemplate = paste0("<b>Registered:  %{y:.2f} %</b>",
                                                           "<extra></extra>"),
-                                   line = list( color="red", width=2)) %>%
+                                   line = list( color="red", width=6)) %>%
                         add_lines( x=~date, y=~dose1_pop_perc, name="Dose 1", 
                                    hovertemplate = paste0("<b>Dose 1:  %{y:.2f} %</b>",
                                                           "<extra></extra>"),
@@ -416,7 +416,7 @@ scatter_vax_death_cases <- df_vax %>% select( date, dose1_cumul, dose2_cumul, ca
 scatter_vax_death_cases
 
 #-------------------------------------------------------------------------------
-# daily cases vs vaccinations ( death as size)
+# daily cases vs daily vaccinations ( death as size)
 #   split by event
 #   by virtue of increasing cases, the recent events are top-right
 scatter_vax_death_cases_daily <- df_vax %>% 
@@ -494,7 +494,7 @@ scatter_vax_death_cumulcases_daily <- df_vax %>%
                                                         "<b>Cases:        %{x:,f}</b>", "<br>",
                                                         "<b>Total Dose: %{y:,f}</b>",
                                                         "<extra></extra>") ) %>%
-                    layout( title = "Cumulative Vaccinations vs Cumulative Cases<br>Deaths as circle size",
+                    layout( title = "Daily Vaccinations vs Cumulative Cases<br>Deaths as circle size",
                             xaxis = list( title = "<b>Cumulative Cases</b>", tickformat = ",f"),
                             yaxis = list( title = "<b>Daily Doses</b>", tickformat = ",f")
                     )
@@ -502,32 +502,75 @@ scatter_vax_death_cumulcases_daily
 
 
 
+# cumulative vaccination vs daily cases
+scatter_vax_death_cumulcases_daily <- df_vax %>% 
+    select( date, dose1_daily, dose2_daily, total_daily, dose1_cumul, dose2_cumul,
+            total_cumul, cases_new, cases_cumul, deaths_new) %>% 
+    filter( complete.cases(.)) %>%
+    plot_ly( type="scatter", mode="lines+markers") %>% 
+    add_markers( x=~dose1_cumul, y=~cases_new, name="Dose 1",
+                 marker = list( color="blue", symbol=200, 
+                                size=~deaths_new/4, opacity=0.3,
+                                line = list( color="blue")),
+                 line = list( color="blue", width=0.2),
+                 hovertemplate=~paste0( format(date, "%e %b %Y  %A"), "<br>",
+                                        "<b>Daily Dose 1:   %{y:,f}</b>", "<br>",
+                                        "<b>Daily Deaths:", str_pad( format( deaths_new, big.mark=","),13, "left") , "</b><br>",
+                                        "<b>Cumul. Cases: %{x:,f}</b>", "<br>",
+                                        "Daily Cases:", str_pad(format( cases_new, big.mark=","), 14, "left"), "<br>",
+                                        "<extra></extra>") ) %>%
+    add_markers( x=~dose2_cumul, y=~cases_new, name="Dose 2",
+                 mode="marker+lines",
+                 marker = list( color="green", symbol=200, 
+                                size=~deaths_new/4, opacity=0.3,
+                                line = list( color="green")),
+                 line = list( color="green", width=0.2),
+                 hovertemplate=~paste0( format(date, "%e %b %Y  %A"), "<br>",
+                                        "<b>Cases:     %{x:,f}</b>", "<br>",
+                                        "<b>Dose 2:  %{y:,f}</b>",
+                                        "<extra></extra>")) %>%
+    add_markers( x=~total_cumul, y=~cases_new, name="Total Dose",
+                 marker = list( color="orange", symbol=200, 
+                                size=~deaths_new/4, opacity=0.3,
+                                line = list( color="orange")),
+                 line = list( color="orange", width=0.2),
+                 hovertemplate=~paste0( format(date, "%e %b %Y  %A"), "<br>",
+                                        "<b>Cases:        %{x:,f}</b>", "<br>",
+                                        "<b>Total Dose: %{y:,f}</b>",
+                                        "<extra></extra>") ) %>%
+    layout( title = "Daily Vaccinations vs Cumulative Cases<br>Deaths as circle size",
+            xaxis = list( title = "<b>Cumulative Doses</b>", tickformat = ",f"),
+            yaxis = list( title = "<b>Daily Cases</b>", tickformat = ",f")
+    )
+scatter_vax_death_cumulcases_daily
+
+
 # cumulative cases vs cumulative vaccinations ( death as size)
 #   split by event
 scatter_vax_death_cases <- df_vax %>% select( date, dose1_cumul, dose2_cumul, cases_cumul, deaths_new) %>% 
                             filter( complete.cases(.)) %>%
                             plot_ly( type="scatter", mode="markers") %>% 
-                            add_markers( x=~cases_cumul, y=~dose1_cumul, name="Dose 1",
+                            add_markers( x=~dose1_cumul, y=~cases_cumul, name="Dose 1",
                                          hovertemplate=~paste0( format(date, "%e %b %Y  %A"), "<br>",
-                                                                "<b>Cases:  %{x:,f}</b>", "<br>",
-                                                                "<b>Dose 1:      %{y:,f}</b>",
+                                                                "<b>Cases:  %{y:,f}</b>", "<br>",
+                                                                "<b>Dose 1:      %{x:,f}</b>",
                                                                 "<extra></extra>"),
                                          marker = list( color="blue", symbol=200, 
                                                         size=~deaths_new/4, opacity=0.3,
                                                         line = list( color="blue"))
                                          ) %>%
-                            add_markers( x=~cases_cumul, y=~dose2_cumul, name="Dose 2",
+                            add_markers( x=~dose2_cumul, y=~cases_cumul, name="Dose 2",
                                          hovertemplate=~paste0( format(date, "%e %b %Y  %A"), "<br>",
-                                                                "<b>Cases:  %{x:,f}</b>", "<br>",
-                                                                "<b>Dose 2:      %{y:,f}</b>",
+                                                                "<b>Cases:  %{y:,f}</b>", "<br>",
+                                                                "<b>Dose 2:      %{x:,f}</b>",
                                                                 "<extra></extra>"),
                                          marker = list( color="green", symbol=200, 
                                                         size=~deaths_new/4, opacity=0.3,
                                                         line = list( color="green"))
                                                         ) %>%
                             layout( title = "Cumulative Vaccinations vs Cumulative Cases<br>Deaths as circle size",
-                                    xaxis = list( title = "<b>Cumulative Cases</b>", tickformat = ",f"),
-                                    yaxis = list( title = "<b>Cumulative Doses</b>", tickformat = ",f")
+                                    yaxis = list( title = "<b>Cumulative Cases</b>", tickformat = ",f"),
+                                    xaxis = list( title = "<b>Cumulative Doses</b>", tickformat = ",f")
                             )
 scatter_vax_death_cases
 

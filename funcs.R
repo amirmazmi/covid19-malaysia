@@ -27,10 +27,11 @@ events_gen <- function(startDate = 0, exclude=list(), yloc = NA, anchor = "left"
     ann_vert_line <- apply(df_events,1, 
                            function(x){ 
                                text_labels( xloc=x["date"], yloc=ifelse( is.na(yloc), x["yloc"], NA ),
-                                            label=x["label"], 
+                                            label=x["label"],
                                             anchor=anchor, showarrow=showarrow, font=font,
-                                            a_x = a_x, a_y = a_y, arrowhead = 2, 
-                                            miny = miny, maxy = maxy, debug = debug)
+                                            a_x = a_x, a_y = a_y, arrowhead = 2,
+                                            miny = miny, maxy = maxy, debug = debug
+                                            )
                            })
     return( list( shapes = vert_line, annotations = ann_vert_line, data = df_events))
 }
@@ -53,7 +54,7 @@ vline <- function(x = 0, color = "red", width = 2, dash="solid") {
     )
 }
 
-text_labels <- function( xloc = NA, yloc = NA, label, anchor = "right", 
+text_labels <- function( xloc = NA, yloc = NA, x_ref = "x", y_ref = "paper", label, anchor = "right", 
                          a_x = 10, a_y = -20, showarrow = T, arrowhead = 2, 
                          miny = 0.7, maxy = 0.9, font = 12, debug = F){
     if( debug ) print( c(xloc,yloc))
@@ -61,8 +62,8 @@ text_labels <- function( xloc = NA, yloc = NA, label, anchor = "right",
         x = xloc,
         y = if( is.na(yloc)) seq(miny,maxy,0.025) else yloc, # %>% sample(10,replace=T)
         text = label,
-        xref = ifelse( xloc, "x", "paper"),
-        yref = "paper",
+        xref = x_ref,
+        yref = y_ref,
         showarrow = showarrow,
         arrowhead = arrowhead,
         xanchor = anchor,
@@ -73,7 +74,7 @@ text_labels <- function( xloc = NA, yloc = NA, label, anchor = "right",
 }
 
 
-hline <- function(y = 0, color = "blue") {
+hline <- function(y = 0, color = "blue", width = 2, dash="solid") {
     list(
         type = "line", 
         x0 = 0, 
@@ -81,7 +82,7 @@ hline <- function(y = 0, color = "blue") {
         xref = "paper",
         y0 = y, 
         y1 = y, 
-        line = list(color = color, width=2)
+        line = list(color = color, width = width, dash = dash)
     )
 }
 
@@ -95,17 +96,6 @@ bbands <- function( data_col, wind=11){
     
     result["upper"] <- result[1] + result[2] * 2
     result["lower"] <- result[1] - result[2] * 2
-    
-    # err <- 100
-    # while( max(err) > wind){
-    #     result <- BBands(column, n=wind)
-    #     err <- colSums(is.na(result))
-    #     wind = wind + 1
-    # }
-    # result$widthbband <- result$up - result$dn
-    # final <- cbind( ticker, result)
-    # final$uperr <- final$up - column
-    # final$dnerr <- column - final$dn
     
     colnames <- grep(names(result), pattern="bband",invert=T)
     

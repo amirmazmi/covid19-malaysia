@@ -139,7 +139,8 @@ df_deaths <- cbind( df_deaths, bbands( df_deaths$deaths_new, 14) ) %>%
             cumUpper = cumsum( coalesce(upper, 0)) + upper*0,
             cumLower = cumsum( coalesce(lower, 0)) + lower*0,
             diffcumband = cumUpper - cumLower
-    )
+    ) %>% 
+    full_join( df_dailycases %>% select(date, cases_new), by="date")
 ma_col_deaths <- grep( "MA[0-9]{1,3}", names(df_deaths),  value=T)
 
 
@@ -171,6 +172,24 @@ tsplot_dailydeaths <- df_deaths %>%
     )
 
 tsplot_dailydeaths
+
+
+# correlation between cases and deaths
+scatter_daily_deaths_cases <- df_deaths %>% 
+    select( date, cases_new, deaths_new) %>% 
+    filter( complete.cases(.)) %>% 
+    plot_ly( x=~cases_new, y=~deaths_new, name="Daily deaths", 
+             type = "scatter", mode = "markers",
+             marker = list( size = 8),
+             hovertemplate = ~paste0( format( date, "%e %b %Y  %A"), "<br>",
+                                    "<b>Deaths:  %{y:,f}</b>",
+                                    "<extra></extra>")
+             ) %>% 
+    layout( title = "Correlation between Cases and Deaths",
+            xaxis = list( title = "Daily Cases"),
+            yaxis = list ( title = "Daily Deaths")
+    )
+scatter_daily_deaths_cases
 
 
 

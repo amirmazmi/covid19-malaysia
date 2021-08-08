@@ -48,11 +48,12 @@ relib()
 #-------------------------------------------------------------------------------
 # root directory
 dir_path <- "repo covid19-public"
+dir_vaccine <- "repo citf-public"
 #-------------------------------------------------------------------------------
 ```
 
 ---  
-author: `r paste(params$set_author, "&emsp;&emsp;[ Last updated ", format(today(),'%e %b %Y'), "]<br><br><hr>")`
+author: `r paste(params$set_author, "<br>Last updated ", format(today(),'%e %b %Y'), "<br><br><hr>")`
 ---  
 
 
@@ -68,8 +69,12 @@ author: `r paste(params$set_author, "&emsp;&emsp;[ Last updated ", format(today(
 
 ---  
 
-Data source : [ https://github.com/MoH-Malaysia/covid19-public ](https://github.com/MoH-Malaysia/covid19-public)  
-Source code : [https://github.com/amirmazmi/covid19-malaysia](https://github.com/amirmazmi/covid19-malaysia)
+Data source :  
+[ https://github.com/MoH-Malaysia/covid19-public ](https://github.com/MoH-Malaysia/covid19-public)  
+[ https://github.com/CITF-Malaysia/citf-public ](https://github.com/CITF-Malaysia/citf-public)  
+  
+Source code :  
+[https://github.com/amirmazmi/covid19-malaysia](https://github.com/amirmazmi/covid19-malaysia)
 
 <br>    
     
@@ -86,6 +91,11 @@ events_generic <- events_gen( showarrow=F, yloc=NA)
 # remove school reopens as no trend    
 events_x_school <- events_gen(startDate="2020-12-01", exclude="2021-03-01")
 
+# for vaccination plots
+events_vaccine <- events_gen(startDate="2021-02-15", exclude="2021-03-01")
+
+                             
+                             
 #-------------------------------------------------------------------------------
 # NATIONAL level data
 #-------------------------------------------------------------------------------
@@ -187,6 +197,46 @@ df_tod_checkins <- df_tod_checkins %>%
             lowerband= mean - sd,
             upperband= mean + sd
     )
+
+
+#-------------------------------------------------------------------------------
+# VACCINE data
+#-------------------------------------------------------------------------------
+# registered for vaccination
+df_reg <- read.csv( file.path( dir_vaccine, "registration", "vaxreg_malaysia.csv"),
+                    stringsAsFactors=F) %>% 
+            select( -state) %>% 
+            mutate( date = ymd(date))
+names(df_reg) <- names(df_reg) %>% str_replace("total", "total_reg")
+
+
+# population 
+#   does not represent migrants (especially foreign)
+df_pop <- read.csv( file.path( dir_vaccine, "static", "population.csv"),
+                    stringsAsFactors=F)
+
+
+# daily vaccination data
+df_vax <- read.csv( file.path( dir_vaccine, "vaccination", "vax_malaysia.csv"),
+                    stringsAsFactors=F) %>% 
+            mutate( date = ymd(date),
+                    total_MA14 = roll_meanr( total_daily, 14),
+                    dose1_MA14 = roll_meanr( dose1_daily, 14),
+                    dose2_MA14 = roll_meanr( dose2_daily, 14)) %>% 
+            full_join( df_reg %>% select(date, total_reg), by="date") %>% 
+            full_join( df_cases_deaths %>% select(date, cases_new, cum_cases, deaths_new, cum_deaths, ), by="date") %>% 
+            # full_join( df_cases, by="date") %>% 
+            rename( cases_cumul=cum_cases, deaths_cumul=cum_deaths) %>% 
+            mutate( dose1_pop_perc = (( dose1_cumul/df_pop$pop[1]) * 100) %>% round(2),
+                    dose2_pop_perc = (( dose2_cumul/df_pop$pop[1]) * 100) %>% round(2),
+                    total_reg_pop_perc = ((total_reg/df_pop$pop[1]) * 100) %>% round(2),
+                    rem_dose1 = total_reg - dose1_cumul,
+                    rem_dose2 = total_reg - dose2_cumul,
+                    rem_total = total_reg*2 - total_cumul,
+                    rem_dose1_pop_perc = (( rem_dose1/df_pop$pop[1]) * 100) %>% round(2),
+                    rem_dose2_pop_perc = (( rem_dose2/df_pop$pop[1]) * 100) %>% round(2),
+            ) %>% 
+            arrange( date)
 ```
 
 <br>  
@@ -197,6 +247,13 @@ df_tod_checkins <- df_tod_checkins %>%
 &emsp;&emsp;On 13th July, the daily cases have reached a new high exceeding 10,000 reported cases per day. In the following few days, the cases numbers kept on rising exceeding the 17,000 mark. Despite an accelerating vaccination program, rising cases has caused grave concern in the country and one of the efforts by the MoH was to publish the data.  
 <br>  
 
+
+
+
+
+
+<!-- ########################################################################## -->
+<!-- ########################################################################## -->
 
 ## Daily Numbers  {.tabset .tabset-pills}
 
@@ -392,7 +449,7 @@ Generally, Bollinger Bands are used to describe the price movement (forex/stocks
 ```{r death-vs-cases, out.width = '100%'}
 events_no_school <- events_gen( exclude="2021-03-01")$data
 
-yaxis_control <- 1.25*10^6
+yaxis_control <- (( 3 + (df_cases_deaths$cum_cases %>% max) %/% 10^4 ) ) *10^4
 ls_death_rate <- seq(0.01, 0, by=-0.002) %>% lapply( function(x){ x*yaxis_control})
 marker_cols <- nrow(events_no_school) %>% (brewer.pal( 8, "Dark2") %>% colorRampPalette(colors=.))    # c("orange", "green", "dodgerblue") 
 line_colors <- 5 %>% (brewer.pal( 9, "Greens") %>%  colorRampPalette(colors=.)) %>% rev
@@ -410,8 +467,8 @@ for( k in seq(nrow(events_no_school))){
                                              name=events_no_school$event[k],
                                              marker=list(size=14, symbol=100, color=marker_cols[k]),
                                              hovertemplate=~paste0( format(date, "%e %b %Y %A"), "<br><b>",
-                                                                    "Deaths:  %{x: ,f}", "<br>", 
-                                                                    "Cases:         %{y: ,f}", "</b>" )
+                                                                    "Deaths:     %{y: ,f}", "<br>", 
+                                                                    "Cases:  %{x: ,f}", "</b>" )
                                              )
 }
 for( i in seq(0.012, 0.002, by=-0.002)){
@@ -425,15 +482,15 @@ for( i in seq(0.012, 0.002, by=-0.002)){
 scatter_cases_deaths <- scatter_cases_deaths %>% 
                             layout( #title = "Line shows min tests required for 5% positive rate",
                                     xaxis = list( title = "Cumulative Cases", tickformat = ",f",
-                                                  range = c(-10^5, yaxis_control)),
+                                                  range = c(-5*10^4, yaxis_control)),
                                     yaxis = list ( title = "Cumulative Deaths", tickformat = ",f",
-                                                  range = c(-10^3, yaxis_control*0.01)),
+                                                  range = c(-5*10^2, yaxis_control*0.01)),
                                     legend = list( y = 0.95)
                             )
 scatter_cases_deaths
 ```
 
-Each circle represents daily data.
+Each circle represents daily data. Cumulatives (or totals) are used as the cases and deaths are not time matched per observation. 
 
 __Observations:__  
 
@@ -451,7 +508,7 @@ We can make some assumptions that deaths are driven by multiple external factors
 
 <br>
 
-&emsp;&emsp;It is important to note that most effects are exponential, e.g. infection rates, death rates, hence the reason that earlier efforts to flatten the curve was critical and effective. 
+&emsp;&emsp;It is important to note that most effects are exponential, e.g. infection rates, death rates, hence the reason that earlier efforts to flatten the curve was critical and effective. Unfortunately, sustained effort was not achieved. 
 
 <br><br><hr><br>  
 
@@ -459,6 +516,10 @@ We can make some assumptions that deaths are driven by multiple external factors
 
 
 
+
+
+<!-- ########################################################################## -->
+<!-- ########################################################################## -->
 
 
 ## Positivity rate {.tabset .tabset-pills}
@@ -474,8 +535,6 @@ We can make some assumptions that deaths are driven by multiple external factors
 \*_Will be updated accordingly if daily positive numbers are made available._
 
 <br>
-
-
 
 
 
@@ -530,7 +589,6 @@ __Observations:__
 
 
 
-
 ### Correlation
 
 &emsp; _<span style="font-size:0.9em;"><span style="color:DarkGoldenRod;">5% positive</span> line shows minimum number of tests required for 5% positive rate.</span>_
@@ -575,13 +633,368 @@ __Observations:__
 
 
 
+
+
+
+<!-- ########################################################################## -->
+<!-- ########################################################################## -->
+## Vaccination {.tabset .tabset-pills}
+
+&emsp;&emsp;In Malaysia, the national COVID-19 vaccination program is managed by PICK (Program Immunisasi COVID-19 Kebangsaan or National COVID-19 Immunisation Programme) established under the COVID-19 Immunisation Task Force (CITF). Most vaccines will require two doses although there has also been news regarding addtional booster shots to maintain immune levels and some manufacturers have applied for approval. 
+
+The program began on 24th February 2021 and is split into 3 phases<sup>1</sup>.   
+
+1. Phase 1 - healthcare and security personnel as well as essential services.  
+2. Phase 2 - high risk groups with chronic diseases including senior citizens and disabled.  
+3. Phase 3 - adult population aged 18 years old and above.  
+ 
+<br> 
+  
+&emsp;&emsp;Up until 7th August 2021, 24 million total doses have been delivered comprising of both first and second dose. The rollout has had a slow start<sup>2</sup> due to initial procurement and delivery issues but has since ramped up since to deliver on average 500,000 doses per day (as of 7th August 2021). There has been some issues administering the vaccine including jabs with empty syringes or the plunger not being pressed<sup>3</sup>. CITF has taken a firm stand and issued a statement that they will be investigating any reports and punishing any offenders if found to be involved in misconduct. As a result, the task force has allowed video recordings while the vaccine is being administered. 
+
+
+&emsp;&emsp;It is important to note that while vaccination reduces the likelihood of infection, albeit minimal, the main outcome would be the increased likelihood of prevention from serious illness and death<sup>4</sup>. <b>Therefore even with high vaccination numbers, the spread of COVID-19 must still be managed</b> as there are still sections of the population that have not and most likely will not be vaccinated such as pregnant and breastfeeding mothers, children and those ineligible due to medical conditions. Any infection of these population may still result in death. It is hoped with a high number of population vaccinated, it would reduce congestion in hospitals and quarantine centers, allowing for hospitalized care of those in need. 
+
+
+&emsp;&emsp;In Malaysia, these severe cases are classified as <span style="color: tomato;">Category 4 (pneumonia and requires oxygen)</span> and <span style="color: tomato;">Category 5 (critical and requires ventilator)</span> whereas <span style="color: sienna;">Category 1 (asymptomatic)</span> and <span style="color: sienna;">Category 2 (mild symptoms)</span> are deemed as mild. <span style="color: darkorange;">Category 3 (pneumonia)</span> requires medical observation<sup>5</sup>. The government has recently announced that these will form part of the indicators for relaxed SOP and allow fully vaccinated persons (14 days after 2nd dose) to dine-in at restaurants and travel. Hopefully as the population has had more than one year experience into this, they will take a cautionary approach and still limit their exposure.   
+
+<br>
+
+
+[1] https://www.vaksincovid.gov.my/en/phase/  
+[2] https://www.freemalaysiatoday.com/category/nation/2021/06/21/khairy-tells-why-vaccine-supplies-have-been-slow/  
+[3] https://www.scmp.com/week-asia/health-environment/article/3141849/malaysias-empty-syringe-incidents-may-fuel-covid-19  
+[4] https://www.who.int/news-room/feature-stories/detail/vaccine-efficacy-effectiveness-and-protection  
+[5] https://kpkesihatan.com/2021/07/22/kenyataan-akhbar-kpk-22-julai-2021-situasi-semasa-jangkitan-penyakit-coronavirus-2019-covid-19-di-malaysia/  
+
+<br><br>  
+
+
+
+
+
+### Daily Numbers
+
+```{r daily-vax, out.width = '100%'}
+# plot vaccination daily
+tsplot_vax <- df_vax %>% 
+                # select(date, dose1_daily, dose2_daily, dose1_MA14, dose2_MA14, total_daily, total_MA14) %>% 
+                filter( !is.na(total_daily)) %>% 
+                plot_ly( type = "scatter", mode = "lines") %>% 
+                add_lines( x=~date, y=~dose1_daily, name="Dose 1", 
+                           hovertemplate = paste0("%{x|%e %b %Y  %A}", "<br>",
+                                                "<b>Dose 1:  %{y:,f}</b>",
+                                                "<extra></extra>"),
+                           line = list( color="blue", width=1.5, dash="dot")) %>% 
+                add_lines( x=~date, y=~dose1_MA14, name="Dose 1 (MA14)", 
+                           hovertemplate = paste0("%{x|%e %b %Y  %A}", "<br>",
+                                                  "<b>Moving Average:  %{y:,f}</b>",
+                                                  "<extra></extra>"),
+                           line = list( color="blue", width=2)) %>% 
+                add_lines( x=~date, y=~dose2_daily, name="Dose 2", 
+                           hovertemplate = paste0("%{x|%e %b %Y  %A}", "<br>",
+                                                  "<b>Dose 2:  %{y:,f}</b>",
+                                                  "<extra></extra>"),
+                           line = list( color="green", width=1.5, dash="dot")) %>%
+                add_lines( x=~date, y=~dose2_MA14, name="Dose 2 (MA14)", 
+                           hovertemplate = paste0("%{x|%e %b %Y  %A}", "<br>",
+                                                  "<b>Moving Average:  %{y:,f}</b>",
+                                                  "<extra></extra>"),
+                           line = list( color="green", width=2)) %>% 
+                add_lines( x=~date, y=~total_daily, name="Total Daily Doses<br>Administered", 
+                           hovertemplate = paste0("%{x|%e %b %Y  %A}", "<br>",
+                                                  "<b>Total Daily Doses Administered:  %{y:,f}</b>",
+                                                  "<extra></extra>"),
+                           line = list( color="orange", width=1.4, dash="dot")) %>% 
+                add_lines( x=~date, y=~total_MA14, name="Total Daily (MA14)", 
+                           hovertemplate = paste0("%{x|%e %b %Y  %A}", "<br>",
+                                                  "<b>Moving average:  %{y:,f}</b>",
+                                                  "<extra></extra>"),
+                           line = list( color="orange", width=2)) %>% 
+                layout( #title = "Daily Vaccinations",
+                        xaxis = list( title = "<b>Date</b>", tickformat = "%e-%b-%Y<br>%A"),
+                        yaxis = list ( title = "<b>Doses</b>", tickformat = ",f"),
+                        shapes = events_vaccine[[1]], annotations = events_vaccine[[2]],
+                        legend = list( y = 0.95)
+                )
+tsplot_vax
+```
+
+&emsp; Chart above shows the daily doses administered with a 14-day moving average highlighted.
+
+__Observations:__  
+
+1. As of 7th August 2021, <span style="color: orange;">average total doses</span> delivered per day is approximately 500,000 with <span style="color: blue;">1st dose</span> at approximately 300,000 and  <span style="color: green;">2nd dose</span> approximately 200,000.
+2. Daily doses delivered started to increase around first week of June. 
+
+<br>  
+
+&emsp; The vaccination rate has increased steadily and it is hoped will stay at these levels until a significant majority of the population has been vaccinated. 
+
+<br><br><br><hr><br>  
+
+
+
+
+
+
+
+
+### Cumulative Doses
+
+```{r cumulative-vax, out.width = '100%'}
+
+ls_shape <- events_vaccine$shapes[1] %>% append( list( hline( df_pop$pop_18[1], "black", width = 1.5, dash = "longdash")))
+# events_vaccine$shapes[[3]] <- hline( df_pop$pop[1], "black", dash = "dash")
+
+ls_annotations <- events_vaccine$annotations[1] %>% 
+                    append( list(text_labels( xloc=0.1, yloc=(df_pop$pop_18[1]*1.02), x_ref="paper", y_ref="y", 
+                                         label="Above 18 Population", anchor="left",
+                                         showarrow=F, font=14)))
+# events_vaccine$annotations[[3]] <- text_labels( xloc=0.1, yloc=df_pop$pop[1]*1.03, x_ref="paper", y_ref="y",
+#                                                 label="Total Population", anchor="left",
+#                                                 a_x=0, a_y=-15, showarrow=F, font=14)
+
+# cumulative plot vaccination daily
+cumplot_vax <- df_vax %>% 
+                plot_ly( type = "scatter", mode = "lines") %>% 
+                add_lines( x=~date, y=~total_reg, name="Registered for<br>Vaccination", 
+                           hovertemplate = paste0("<b>Registered:  %{y:,f}</b>",
+                                                  "<extra></extra>"),
+                           line = list( color="red", width=5)) %>%
+                add_lines( x=~date, y=~dose1_cumul, name="Dose 1", 
+                           hovertemplate = paste0("<b>Dose 1:  %{y:,f}</b>",
+                                                  "<extra></extra>"),
+                           line = list( color="blue", width=1.5)) %>% 
+                add_lines( x=~date, y=~rem_dose1, name="Remaining for<br>Dose 1", 
+                           hovertemplate = paste0("<b>Remaining for Dose 1:  %{y:,f}</b>",
+                                                  "<extra></extra>"),
+                           line = list( color="blue", width=1.5, dash="dot")) %>% 
+                add_lines( x=~date, y=~dose2_cumul, name="Dose 2", 
+                           hovertemplate = paste0("<b>Dose 2:  %{y:,f}</b>",
+                                                  "<extra></extra>"),
+                           line = list( color="green", width=1.5)) %>% 
+                add_lines( x=~date, y=~rem_dose2, name="Remaining for<br>Dose 2", 
+                           hovertemplate = paste0("<b>Remaining for Dose 2:  %{y:,f}</b>",
+                                                  "<extra></extra>"),
+                           line = list( color="green", width=1.5, dash="dot")) %>% 
+                add_lines( x=~date, y=~total_cumul, name="Total Doses", 
+                           hovertemplate = paste0("<b>Total doses:  %{y:,f}</b>",
+                                                  "<extra></extra>"),
+                           line = list( color="orange", width=2)) %>%
+                add_lines( x=~date, y=~rem_total, name="Remaining<br>Total doses", 
+                           hovertemplate = paste0("<b>Remaining total doses:  %{y:,f}</b>",
+                                                  "<extra></extra>"),
+                           line = list( color="orange", width=1.5, dash="dot")) %>% 
+                layout( title = "Cumulative Vaccinations",
+                        xaxis = list( title = "<b>Date</b>", tickformat = "%e-%b-%Y<br>%A",
+                                      showspikes = T, showline = T, 
+                                      spikemode = "across+toaxis", spikesnap = "data",
+                                      spikedash = "solid", spikecolor = "grey", spikethickness = 0.8 ),
+                        yaxis = list ( title = "<b>Doses</b>", tickformat = ",f"),
+                        shapes = ls_shape, annotations = ls_annotations ,
+                        hovermode = "x", legend = list( y = 0.95)
+                )
+cumplot_vax
+```
+
+&emsp; Chart above indicates the number of doses that has been administered against the number of registered eligible receipients. This allows a more holistic view by tracking the moving target of registered receipients as well as comparing the remaining doses to be delivered. As a comparison, the population of adults above 18 years old is `r df_pop$pop_18[1] %>% format( big.mark=",")` as indicated by the horizontal line. 
+
+<br>
+
+__Observations:__  
+
+1. In the period between 24th June 2021 until 5th August 2021, an additional 5,000,000 eligible receipients has <span style="color: red;">registered</span>.  
+2. On 16th July 2021, 50% of those registered have received their <span style="color: blue;">first dose</span>.  
+3. As of 7th August 2021, approximately 39% registered receipients have received their <span style="color: green;">2nd dose</span>.
+
+<br>  
+
+&emsp; Note that the data does not clearly indicate whether the registered receipients are entirely citizens or if it includes foreign nationals. The success of the vaccination program will depend on as many of the population being vaccinated irrespective of their citizenship or immigration status including undocumented or illegal migrants. 
+
+<br><br><hr><br>  
+
+
+
+
+
+
+
+
+
+### Percentage Population
+
+```{r vax-percent-pop, out.width = '100%'}
+# cumulative plot vaccination daily - % population
+cumplot_perc_pop_vax <- df_vax %>% 
+                        plot_ly( type = "scatter", mode = "lines") %>% 
+                        add_lines( x=~date, y=~total_reg_pop_perc, name="Registered for<br>Vaccination", 
+                                   hovertemplate = paste0("<b>Registered:  %{y:.2f} %</b>",
+                                                          "<extra></extra>"),
+                                   line = list( color="red", width=5)) %>%
+                        add_lines( x=~date, y=~dose1_pop_perc, name="Dose 1", 
+                                   hovertemplate = paste0("<b>Dose 1:  %{y:.2f} %</b>",
+                                                          "<extra></extra>"),
+                                   line = list( color="blue", width=1.5)) %>% 
+                        add_lines( x=~date, y=~rem_dose1_pop_perc, name="Remaining<br>for Dose 1", 
+                                   hovertemplate = paste0("<b>Remaining for Dose 1:  %{y:.2f} %</b>",
+                                                          "<extra></extra>"),
+                                   line = list( color="blue", width=1.5, dash="dot")) %>% 
+                        add_lines( x=~date, y=~dose2_pop_perc, name="Dose 2", 
+                                   hovertemplate = paste0("<b>Dose 2:  %{y:.2f} %</b>",
+                                                          "<extra></extra>"),
+                                   line = list( color="green", width=1.5)) %>%
+                        add_lines( x=~date, y=~rem_dose2_pop_perc, name="Remaining<br>for Dose 2", 
+                                   hovertemplate = paste0("<b>Remaining for Dose 2:  %{y:.2f} %</b>",
+                                                          "<extra></extra>"),
+                                   line = list( color="green", width=1.5, dash="dot")) %>% 
+                        layout( #title = "Cumulative Vaccinations<br>as a Percentage of Population",
+                                xaxis = list( title = "<b>Date</b>", tickformat = "%e-%b-%Y<br>%A",
+                                              showspikes = T, showline = T, 
+                                              spikemode = "across", spikesnap = "data",
+                                              spikedash = "solid", spikecolor = "grey", spikethickness = 0.8),
+                                yaxis = list ( title = "<b>Percent of Population  [ % ]</b>", tickformat = ",f%"),
+                                shapes = events_vaccine[[1]], annotations = events_vaccine[[2]],
+                                hovermode = "x", legend = list( y = 0.95)
+                        )
+cumplot_perc_pop_vax
+
+
+```
+
+&emsp; Chart above is similar to the previous cumulative chart with the use of percentage to the <b>total population</b>. The intention here is to present  registered and received vaccinations as percentages of the entire population, including those that are not eligible for vaccinations. Total doses administered has also been removed as it provides no bearing to this view of vaccine coverage. 
+
+&emsp; The population of Malaysia above 18 years old is `r df_pop$pop_18[1] %>% format( big.mark=",")` which represents `r ((df_pop$pop_18[1]/df_pop$pop[1])*100) %>% round(2)`% to the entire population of `r df_pop$pop[1] %>% format( big.mark=",")`. 
+
+<br>
+
+__Observations:__  
+
+1. As of 7th August 2021, almost 50% of the total population has received their <span style="color: blue;">first dose</span> and 26% has received their <span style="color: green;">second dose</span>.  
+
+<br>
+
+&emsp; The population data was provided as part of the dataset and is stated to have been sourced from DOSM (Department of Statistics Malaysia). The number does not indicate whether it comprises of only citizens or includes foreign nationals. For now it is assumed that the data only represents citizens and permanent residents. 
+
+<br><br><hr><br>  
+
+
+
+
+
+
+
+
+
+### Deaths
+
+```{r vax-cases-deaths, out.width = '100%'}
+# cumulative cases vs cumulative vaccinations ( death as size)
+#   split by event
+scatter_vax_death_cases <- df_vax %>% select( date, dose1_cumul, dose2_cumul, cases_cumul, deaths_new) %>% 
+                            filter( complete.cases(.)) %>%
+                            plot_ly( type="scatter", mode="markers") %>% 
+                            add_markers( x=~dose1_cumul, y=~cases_cumul, name="Dose 1",
+                                         hovertemplate=~paste0( format(date, "%e %b %Y  %A"), "<br>",
+                                                                "<b>Dose 1:  %{x:,f}</b><br>",
+                                                                "<b>Cases:    %{y:,f}</b>", "<br>",
+                                                                "<b>Deaths:   ", format(deaths_new, big.mark=","),
+                                                                "<extra></extra>"),
+                                         marker = list( color="blue", symbol=200, 
+                                                        size=~deaths_new/4, opacity=0.3,
+                                                        line = list( color="blue"))
+                                         ) %>%
+                            add_markers( x=~dose2_cumul, y=~cases_cumul, name="Dose 2",
+                                         hovertemplate=~paste0( format(date, "%e %b %Y  %A"), "<br>",
+                                                                "<b>Dose 2:  %{x:,f}", "</b><br>",
+                                                                "<b>Cases:   %{y:,f}","</b><br>",
+                                                                "<b>Deaths:   ", format(deaths_new, big.mark=","),
+                                                                "<extra></extra>"),
+                                         marker = list( color="green", symbol=200, 
+                                                        size=~deaths_new/4, opacity=0.3,
+                                                        line = list( color="green"))
+                                                        ) %>%
+                            layout( title = "<br>Circle size represents daily deaths",
+                                    xaxis = list( title = "<b>Cumulative Doses</b>", tickformat = ",f"),
+                                    yaxis = list( title = "<b>Cumulative Cases</b>", tickformat = ",f"),
+                                    legend = list( y = 0.95)
+                            )
+scatter_vax_death_cases
+
+```
+
+&emsp; The chart above repesents the influence of vaccination on deaths. An important dimension that is included is the cumulative cases since deaths are also influenced by the case numbers since they are proportionate (more cases ~ more deaths). Another dimension in this chart is the rate of change, the distance between circles represent the daily increase for the respective axis e.g. <span style="color: blue;">Dose 1</span> is more spread out along the x-axis representing Cumulative Doses such as between 8 million and 10 million indicating a surge in vaccinations delivered per day. Similarly, if the circles are spread out in the vertical axis of Cumulative Cases, then it would represent a surge in daily cases. 
+
+&emsp; The aim of this chart is to present a visual relationship of how vaccination influences deaths with the cases visible since it is related. As the vaccination continues, it is expected that deaths will decrease (circle size will decrease). Both <span style="color: blue;">dose 1</span> and <span style="color: green;">dose 2</span> data is presented here to determine significance between the doses. From the medical explanation, two doses provides the best likelihood of avoiding deaths, therefore it is expected that the 2nd dose will show smaller numbers as it moves towards the right. In the ideal scenario, the cases will rise slowly in the vertical axis while moving to the right quickly. 
+
+&emsp; Note the sequence of circle size are the same as they both represent the deaths for a given day. Cumulatives (totals) are used as observations are not matched (death are not directly linked to the cases for the day).
+
+
+<br><br><hr><br>  
+
+
+
+
+
+
+
+### Plot 3D
+
+```{r vax-3d, out.width = '100%'}
+vax_3d_plot <-  df_vax %>% 
+                    select( date, cases_new, cases_cumul, dose1_cumul, dose2_cumul, deaths_new ) %>% 
+                    rename( Dose_1=dose1_cumul, Dose_2=dose2_cumul) %>% 
+                    pivot_longer( cols=starts_with("Dose_"), names_to="Dose", values_to="doses") %>% 
+                    as.data.frame() %>% filter( complete.cases(.)) %>% 
+                    plot_ly( x=~doses, y=~cases_cumul, z=~deaths_new, 
+                             type="scatter3d", mode="markers",
+                             marker = list( size=4),
+                             color=~Dose, colors = c('Blue', 'ForestGreen'),
+                             hovertemplate=~paste0(format(date, "%e %b %Y  %A"), "<br>",
+                                                   "<b>Cases:   %{y:,f}</b>", "<br>",
+                                                   "<b>Doses:  %{x:,f}</b>", "<br>",
+                                                   "<b>%{zaxis.title.text}:  %{z:,f}</b>",
+                                                   "<extra></extra>")
+                             ) %>% 
+                    layout(scene = list(xaxis = list(title = '<b>Cumulative Doses</b>',
+                                                     showexponent = "all", exponentformat = "B"),
+                                        yaxis = list(title = '<b>Cumulative Cases</b>',
+                                                     showexponent = "all", exponentformat = "B"),
+                                        zaxis = list(title = '<b>Daily Deaths</b>', tickformat = ",f")),
+                           legend = list( y = 0.95, itemsizing='constant') )
+vax_3d_plot
+
+
+
+```
+
+&emsp; Similar to the previous chart, the chart above attempts to describe the relationship between cases, vaccinations and deaths. Again, cumulatives (totals) are used as each observation is not directly linked.  
+
+<br><br>  
+
+<br><br>  
+  
+<br><br>  
+  
+<br><br><hr><br>  
+
+
+
+
+
+
+
+
+<!-- ########################################################################## -->
+<!-- ########################################################################## -->
+
 ## MySejahtera {.tabset .tabset-pills}
 
 ```{r max_unique_index, include = F, cache = T}
 max_unique_index <- df_national_checkin %>% filter( unique_ind == max(unique_ind, na.rm=T))
 ```
 
-The app was launched on 20th April 2020 as part of an effort to simplify contact tracing. Its use has also been expanded for vaccine registration. The published data for check-ins starts from 1st December 2020 until present.
+&emsp;&emsp;The app was launched on 20th April 2020 as part of an effort to simplify contact tracing. Its use has also been expanded for vaccine registration. The published data for check-ins starts from 1st December 2020 until present.
 
 * The highest recorded unique check-ins per day was recorded on `r max_unique_index$date %>% format( "<b>%e %B %Y</b>")` at **`r max_unique_index$unique_ind %>% format( big.mark=",")`**. In comparison, the population of Malaysia is approximately 32.6 million and the population of Klang Valley (KL and Selangor) is approximately 8.3 million. 
 * Manual handwritten entries are still allowed at most locations to provide an alternative.

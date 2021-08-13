@@ -1589,8 +1589,7 @@ surface_plot <-  df_3d %>%
                              ) %>% 
                     layout(scene = list(xaxis = list(title = 'Date', tickformat = "%e %b %Y"),
                                         yaxis = list(title = 'Time of Day', tickformat = "%H:%M"),
-                                        zaxis = list(title = 'Check-ins', tickformat = ",f")),
-                            camera = list( eye = list( x = ))
+                                        zaxis = list(title = 'Check-ins', tickformat = ",f"))
                            )
 surface_plot
 

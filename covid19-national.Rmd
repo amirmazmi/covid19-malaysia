@@ -10,8 +10,6 @@ output:
     toc: true
     toc_float: false
     css: "style.css"
-    # includes:
-        # in_header: template.html
 
 ---
 `r paste( readLines("inserts.txt"), collapse="\n")`
@@ -20,7 +18,6 @@ output:
 knitr::opts_chunk$set(echo = FALSE, fig.height = 6.8, fig.align = "center", message = FALSE, warning = FALSE)
 
 # Created: 25 July 2021
-# Updated: 3 August 2021
 
 ```
 
@@ -78,8 +75,8 @@ Source code :
 
 <br>    
     
-<p style="text-align: center;">_**All charts are interactive please see top right for option. Lines can also be disabled by clicking on the legend.**_</p>
-
+<p style="text-align: center;">*__All charts are interactive please see top right for option. Lines can also be disabled by clicking on the legend.__*</p>
+`r paste( readLines("inserts2.txt"), collapse="\n")`
 <br>  
 
 ---  
@@ -154,7 +151,8 @@ test_ma_col <- grep( "MA", names(df_testing),  value=T)
 df_test_dailycases <- df_testing %>% 
     select( date, total, dow, ) %>% 
     full_join( df_dailycases %>% select(date, cases_new), by="date") %>% 
-    mutate( ideal_test=cases_new/0.05)
+    mutate( ideal_test=cases_new/0.05,
+            perc10_test=cases_new/0.1)
 
 perc5_line <- max(df_test_dailycases$total, na.rm=T)
 
@@ -241,9 +239,14 @@ df_vax <- read.csv( file.path( dir_vaccine, "vaccination", "vax_malaysia.csv"),
 
 <br>  
 
+
+
+
+
+
+
 # National Data
-  
-  
+
 &emsp;&emsp;On 13th July, the daily cases have reached a new high exceeding 10,000 reported cases per day. In the following few days, the cases numbers kept on rising exceeding the 17,000 mark. Despite an accelerating vaccination program, rising cases has caused grave concern in the country and one of the efforts by the MoH was to publish the data.  
 <br>  
 
@@ -465,10 +468,13 @@ for( k in seq(nrow(events_no_school))){
     scatter_cases_deaths <- scatter_cases_deaths %>% 
                                 add_markers( x=~cum_cases, y=~cum_deaths, data=df_event_period,
                                              name=events_no_school$event[k],
-                                             marker=list(size=14, symbol=100, color=marker_cols[k]),
+                                             marker=list(size=14, symbol=100, color=marker_cols[k], 
+                                                         line=list(width=1.5)),
                                              hovertemplate=~paste0( format(date, "%e %b %Y %A"), "<br><b>",
-                                                                    "Deaths:     %{y: ,f}", "<br>", 
-                                                                    "Cases:  %{x: ,f}", "</b>" )
+                                                                    "Daily deaths: ", deaths_new, "<br>",
+                                                                    "Daily cases:  ", format(cases_new, big.mark=","), "<br>",
+                                                                    "Cumul. Deaths:     %{y: ,f}", "<br>", 
+                                                                    "Cumul. Cases:  %{x: ,f}" )
                                              )
 }
 for( i in seq(0.012, 0.002, by=-0.002)){
@@ -497,14 +503,15 @@ __Observations:__
 1. Initially, the trend starts at a very high rate and slowly settles to around 0.4% at the end of December 2020. Later on around May 2021, this deviates upwards to currently just above 0.8% death rate. 
 2. The distance between the circles indicates the speed at which the axis increases. If the distance between cirlces in the x-axis is spread out, means that Cumulative Cases are increasing rapidly and the opposite is true.
 3. Notably, <span style="color: green;">MCO2</span> and followed by <span style="color: blue;">MCO3</span> has seen an increase in cases and and deaths rapidly given the circles are more spread out as compared to the previous periods. 
+4. As of 10th August 2021, 8 states have moved into <span style="color: black;">Phase 2</span>, however, the death rate is continuing to rise.  
 
 <br>
 
-We can make some assumptions that deaths are driven by multiple external factors which are not related to the indvidual. Potentially a model can be built to quantify these relationships better. 
+We can make some assumptions that deaths are driven by multiple external factors which are not related to the indvidual. Potentially a model could be built to quantify these relationships better. A regression model with the inclusion of a logistic growth term (an SIRD model also includes this term) would be a good starting point, although the aim here would be to investigate the relationship between resources (specifically the effect of vaccination rates and hospital capacity) and deaths. 
 
 1. Infection rates or daily cases - higher spread causes more high risk people to be infected and subsequently lose their lives. 
-2. Vaccination rates - theoretically inversely correlated to deaths as vaccinated persons typically do not suffer from illness, only mild symptoms. 
-3. Hospital capacity - inversely correlated with an upper limit where if the hospital capacity is maxed out, it is expected that deaths will begin to rise exponentially.
+2. Vaccination rates - theoretically inversely correlated to deaths as vaccinated persons typically do not suffer from severe illness, only mild symptoms. 
+3. Hospital capacity - inversely correlated with an upper limit where if the hospital capacity is maxed out, it is expected that deaths will begin to rise exponentially as hospitals will have to decide which person to save.
 
 <br>
 
@@ -524,15 +531,15 @@ We can make some assumptions that deaths are driven by multiple external factors
 
 ## Positivity rate {.tabset .tabset-pills}
 
-&emsp;&emsp;There has been much discussion about the positive test rate as per WHO guidelines which states for a maximum 5% positive rate for effective coverage. What is important to note is that the **data for daily cases is not time matched with testing data** as the daily case numbers are when the results are completed from the test labs. Therefore, some variability is expected in relating the daily case numbers directly to the daily testing numbers. While in an ideal situation the positive test data per day be published (with expected delays), in absence of that data, this is the best that can be done. This is worth noting as the data collection process affects the accuracy and understanding that for any insights gleaned from this view are subject to these errors. 
+&emsp;&emsp;There has been much discussion about the positive test rate as per WHO (_World Health Organization_) guidelines which states for a maximum 5% positive rate for effective coverage. What is important to note is that the __data for daily cases are not time matched with testing data__\* as the daily case numbers are when the results are completed from the test labs. Therefore, some variability is expected in relating the daily case numbers directly to the daily testing numbers. While in an ideal situation the positive test data per day be published (with expected delays), in absence of that data, this is the best that can be done. This is worth noting as the data collection process affects the accuracy and understanding that for any insights gleaned from this view are subject to these errors. 
 
-&emsp;&emsp;Any tests conducted in public and private labs are required to be recorded in the SIMKA (Sistem Informasi Makmal Kesihatan Awam) system and is assumed to be the source of this data.
+&emsp;&emsp;Any tests conducted in public and private labs are required to be recorded in the SIMKA (_Sistem Informasi Makmal Kesihatan Awam_) system and is assumed to be the source of this data. As mentioned previously, the daily test numbers do not reflect a unique individual but a test being done i.e. the same person may take two types of different tests (RTK antigen for timeliness and RT-PCR as verification).
 
-&emsp;&emsp;However, as will be observed in the data below, testing in general has not grown fast enough to cope with rising case numbers. Previously, MoH stated their focus on RT-PCR testing, deemed as the gold standard. However, that has changed as more RTK antigen test has been performed. In light of recent events, hopefully more field testing can be done using the cheaper lateral flow test kits that are now widely and cheaply available. At the policy level this could be done by distributing a small number, perhaps 2 test kits per household to be done by the person most frequently going out, in areas with high and growing cases with verification done using RT-PCR.
+&emsp;&emsp;However, as will be observed in the data below, testing in general has not grown fast enough to cope with rising case numbers. Previously, MoH stated their focus on RT-PCR testing, deemed as the gold standard. However, that has changed as more RTK antigen test has been performed. In light of recent events, hopefully more field testing can be done using the cheaper lateral flow test kits that are now widely and cheaply available. <b>At the policy level this could be done by distributing a small number, perhaps 1 or 2 test kits per household to be done by the individual most frequently going out especially in areas with high and growing cases</b>. Confirmation and verification could still be done using RT-PCR.
 
 <br>
   
-\*_Will be updated accordingly if daily positive numbers are made available._
+\*_Will be changed accordingly if daily positive test numbers are made available._
 
 <br>
 
@@ -541,27 +548,30 @@ We can make some assumptions that deaths are driven by multiple external factors
 ### Time Series
 
 ```{r positivity-ts, out.width = '100%'} 
+y_pos_ts_limit <- (((df_test_dailycases$ideal_test %>% max(na.rm=T)) /10^5) %/% 0.5 + 1 ) * 0.5 * 10^5
+
 # plot time series testing vs cases
-plot_test_dailycases <- df_test_dailycases %>% 
+plot_test_dailycases <- df_test_dailycases %>% filter(complete.cases(.)) %>% 
     plot_ly( type="scatter", mode="lines",
              x=~date, y=~total, 
              name="Total test", line = list( color="red", width=1.5),
              hovertemplate = paste0("%{x|%e %b %Y  %A}", "<br>",
-                                    "<b>Cases: %{y:,f}</b><br>",
+                                    "<b>Total tests: %{y:,f}</b><br>",
                                     "<extra></extra>")) %>% 
-    # add_lines( y=~total, name="Total test", line = list( color="blue"),
-    #            hovertemplate = paste0("%{x|%e %b %Y<br>%A}", "<br>",
-    #                                   "<b>Cases: %{y:,f}</b><br>",
-    #                                   "<extra></extra>")) %>% 
     add_lines( y=~ideal_test, name="Testing for 5% ",
-               line=list(color="blue", width=1.2, dash="dot"), #yaxis = "y1",
+               line=list(color="blue", width=1.2, dash="dot"),
                hovertemplate = paste0("%{x|%e %b %Y  %A}", "<br>",
-                                      "<b>Ideal test: %{y:,f}</b><br>",
+                                      "<b>Ideal test 5%: %{y:,f}</b><br>",
+                                      "<extra></extra>")) %>% 
+    add_lines( y=~perc10_test, name="Testing for 10% ",
+               line=list(color="green", width=1.2, dash="dot"),
+               hovertemplate = paste0("%{x|%e %b %Y  %A}", "<br>",
+                                      "<b>10% test: %{y:,f}</b><br>",
                                       "<extra></extra>")) %>% 
     add_lines( y=~cases_new, name="Daily cases", 
                line=list(color="black", width=1.3), yaxis = "y2",
                hovertemplate = paste0("%{x|%e %b %Y  %A}", "<br>",
-                                      "<b>Total tests:  %{y:,f}</b>", "<br>",
+                                      "<b>Daily cases:  %{y:,f}</b>", "<br>",
                                       "<extra></extra>")
     ) %>% 
     layout( #title = "Daily Cases and Testing",
@@ -569,8 +579,8 @@ plot_test_dailycases <- df_test_dailycases %>%
                           domain = c(0,0.965), showspikes = T, showline = T, 
                           spikemode = "across+toaxis", spikesnap = "data",
                           spikedash = "solid", spikecolor = "grey", spikethickness = 0.8),
-            yaxis = list ( title = "Testing", tickformat = ",f", range = c(-15000, 370000)),
-            yaxis2 = list( title= "Daily Cases", tickformat = ",f", range = c(-1500, 37000), 
+            yaxis = list ( title = "Testing", tickformat = ",f", range = c(-15000, y_pos_ts_limit)),
+            yaxis2 = list( title= "Daily Cases", tickformat = ",f", range = c(-3000, y_pos_ts_limit/5), 
                            side="right", overlaying="y", zeroline=F),
             legend = list( y = 0.95),
             hovermode = "x",
@@ -583,6 +593,10 @@ plot_test_dailycases
 __Observations:__  
 
 1. Beyond 19th May 2021, <span style="color: red;">daily testing</span> is below the <span style="color: blue;">5% threshold</span>.
+2. As of 10th August 2021, daily tests continue to lag behind the rise in cases and is currently below <span style="color: green;">10%</span>. 
+
+&emsp; \*_Note this is not the true positivity rate but an approximation due to the lack of data as mentioned earlier._
+
 
 <br><br><hr><br>  
 
@@ -594,21 +608,45 @@ __Observations:__
 &emsp; _<span style="font-size:0.9em;"><span style="color:DarkGoldenRod;">5% positive</span> line shows minimum number of tests required for 5% positive rate.</span>_
 
 ```{r positivity-scatter, out.width = '100%'}
-scatterplot_test_dailycases <- df_test_dailycases %>% filter( complete.cases(.)) %>% 
-                                plot_ly( x=~cases_new, y=~total,
-                                         type="scatter", mode="markers",
-                                         name="Positive Tests",
-                                         marker=list(size=10, symbol=100, color="green"),
-                                         text = ~paste0( format(date, "%e %b %Y %A"), "<br><b>",
-                                                         "Total tests:  ", format( total, big.mark=","), "<br>", 
-                                                         "Daily cases:   ", format( cases_new, big.mark=","), "</b>" ),
-                                         hoverinfo = "text" ) %>% 
+# last 14 days different color
+scatterplot_test_dailycases <- plot_ly( type="scatter", mode="markers")
+
+last_10days <- today() - 10
+
+df_before10days <- df_test_dailycases %>% 
+                    filter( complete.cases(.)) %>% 
+                    filter( date < last_10days)
+df_last10days <- df_test_dailycases %>% 
+                    filter( complete.cases(.)) %>% 
+                    filter( date >= last_10days)
+
+scatterplot_test_dailycases <- scatterplot_test_dailycases %>% 
+                                add_markers( x=~cases_new, y=~total,
+                                             name="Positive Tests", data=df_before10days,
+                                             marker=list(size=10, symbol=100, color="green"),
+                                             text = ~paste0( format(date, "%e %b %Y %A"), "<br><b>",
+                                                             "Total tests:  ", format( total, big.mark=","), "<br>", 
+                                                             "Daily cases:   ", format( cases_new, big.mark=","), "</b>" ),
+                                             hoverinfo = "text" ) %>% 
+                                add_markers( x=~cases_new, y=~total,
+                                             name="Recent 10 days<br>Positive Tests ", data=df_last10days,
+                                             marker=list(size=10, symbol=100, color="red"),
+                                             text = ~paste0( format(date, "%e %b %Y %A"), "<br><b>",
+                                                             "Total tests:  ", format( total, big.mark=","), "<br>", 
+                                                             "Daily cases:   ", format( cases_new, big.mark=","), "</b>" ),
+                                             hoverinfo = "text" ) %>% 
                                 add_segments( x = 0, xend=perc5_line*1.1*0.05,
                                               y = 0, yend=perc5_line*1.1,
-                                              name="5% Positive",
-                                              mode="lines", 
-                                              marker=NULL, #list(size=0.1, color="orange"),
+                                              name="5% Positive", mode="lines", marker=NULL,
                                               line=list(width=1.5, dash="dot", color="orange") ) %>% 
+                                add_segments( x = 0, xend=perc5_line*1.1*0.10,
+                                              y = 0, yend=perc5_line*1.1,
+                                              name="10% Positive", mode="lines", marker=NULL,
+                                              line=list(width=1.5, dash="dot", color="royalblue") ) %>% 
+                                add_segments( x = 0, xend=perc5_line*0.9*0.15,
+                                              y = 0, yend=perc5_line*0.9,
+                                              name="15% Positive", mode="lines", marker=NULL,
+                                              line=list(width=1.5, dash="dot", color="purple") ) %>% 
                                 layout( #title = "Line shows min tests required for 5% positive rate",
                                         xaxis = list( title = "Daily new cases", tickformat = ",f"),
                                         yaxis = list ( title = "Total tests", tickformat = ",f"),
@@ -617,7 +655,7 @@ scatterplot_test_dailycases <- df_test_dailycases %>% filter( complete.cases(.))
 scatterplot_test_dailycases 
 ```
 
-&emsp; Chart above shows the correlation between daily tests and daily cases. 
+&emsp; Chart above shows the correlation between daily tests and daily cases. Some data may be missing due to delay in data from the official repository.
 
 <br>  
 
@@ -640,13 +678,13 @@ __Observations:__
 <!-- ########################################################################## -->
 ## Vaccination {.tabset .tabset-pills}
 
-&emsp;&emsp;In Malaysia, the national COVID-19 vaccination program is managed by PICK (Program Immunisasi COVID-19 Kebangsaan or National COVID-19 Immunisation Programme) established under the COVID-19 Immunisation Task Force (CITF). Most vaccines will require two doses although there has also been news regarding addtional booster shots to maintain immune levels and some manufacturers have applied for approval. 
+&emsp;&emsp;In Malaysia, the national COVID-19 vaccination program is managed by PICK (_Program Immunisasi COVID-19 Kebangsaan or National COVID-19 Immunisation Programme_) established under the _COVID-19 Immunisation Task Force_ (CITF). Most vaccines will require two doses although there has also been news regarding addtional booster shots to maintain immune levels and some manufacturers have applied for approval. 
 
 The program began on 24th February 2021 and is split into 3 phases<sup>1</sup>.   
 
-1. Phase 1 - healthcare and security personnel as well as essential services.  
-2. Phase 2 - high risk groups with chronic diseases including senior citizens and disabled.  
-3. Phase 3 - adult population aged 18 years old and above.  
+1. Phase 1 - Feb-Apr 2021 - healthcare and security personnel as well as essential services.  
+2. Phase 2 - Apr-Aug 2021 - high risk groups with chronic diseases including senior citizens and disabled.  
+3. Phase 3 - May 2021-Feb 2022 - adult population aged 18 years old and above.  
  
 <br> 
   
@@ -744,10 +782,10 @@ __Observations:__
 
 ```{r cumulative-vax, out.width = '100%'}
 
-ls_shape <- events_vaccine$shapes[1] %>% append( list( hline( df_pop$pop_18[1], "black", width = 1.5, dash = "longdash")))
+ls_shape <- events_vaccine$shapes %>% append( list( hline( df_pop$pop_18[1], "black", width = 1.5, dash = "longdash")))
 # events_vaccine$shapes[[3]] <- hline( df_pop$pop[1], "black", dash = "dash")
 
-ls_annotations <- events_vaccine$annotations[1] %>% 
+ls_annotations <- events_vaccine$annotations %>% 
                     append( list(text_labels( xloc=0.1, yloc=(df_pop$pop_18[1]*1.02), x_ref="paper", y_ref="y", 
                                          label="Above 18 Population", anchor="left",
                                          showarrow=F, font=14)))
@@ -806,11 +844,12 @@ __Observations:__
 
 1. In the period between 24th June 2021 until 5th August 2021, an additional 5,000,000 eligible receipients has <span style="color: red;">registered</span>.  
 2. On 16th July 2021, 50% of those registered have received their <span style="color: blue;">first dose</span>.  
-3. As of 7th August 2021, approximately 39% registered receipients have received their <span style="color: green;">2nd dose</span>.
+3. As of 7th August 2021, approximately 39% registered receipients have received their <span style="color: green;">second dose</span>.
+4. On 10th August 2021, the government will be relaxing SOP for Phase 2 states which will allow for interdistrict travel and dine-in options for fully vaccinated persons. This potentially may result in more vaccine registrations. 
 
 <br>  
 
-&emsp; Note that the data does not clearly indicate whether the registered receipients are entirely citizens or if it includes foreign nationals. The success of the vaccination program will depend on as many of the population being vaccinated irrespective of their citizenship or immigration status including undocumented or illegal migrants. 
+&emsp; Note that the data does not clearly indicate whether the registered receipients are entirely citizens or if it includes foreign nationals. The success of the vaccination program will depend on as many of the population being vaccinated irrespective of their citizenship or immigration status including undocumented or illegal immigrants. 
 
 <br><br><hr><br>  
 
@@ -862,7 +901,7 @@ cumplot_perc_pop_vax
 
 ```
 
-&emsp; Chart above is similar to the previous cumulative chart with the use of percentage to the <b>total population</b>. The intention here is to present  registered and received vaccinations as percentages of the entire population, including those that are not eligible for vaccinations. Total doses administered has also been removed as it provides no bearing to this view of vaccine coverage. 
+&emsp; Chart above is similar to the previous cumulative chart with the use of percentage to the __total population__. The intention here is to present  registered and received vaccinations as percentages of the entire population, including those that are not eligible for vaccinations. Total doses administered has also been removed as it provides no bearing to this view of vaccine coverage. 
 
 &emsp; The population of Malaysia above 18 years old is `r df_pop$pop_18[1] %>% format( big.mark=",")` which represents `r ((df_pop$pop_18[1]/df_pop$pop[1])*100) %>% round(2)`% to the entire population of `r df_pop$pop[1] %>% format( big.mark=",")`. 
 
@@ -870,11 +909,11 @@ cumplot_perc_pop_vax
 
 __Observations:__  
 
-1. As of 7th August 2021, almost 50% of the total population has received their <span style="color: blue;">first dose</span> and 26% has received their <span style="color: green;">second dose</span>.  
+1. As of 7th August 2021, almost 50% of the total population have received their <span style="color: blue;">first dose</span> and 26% have received their <span style="color: green;">second dose</span>.  
 
 <br>
 
-&emsp; The population data was provided as part of the dataset and is stated to have been sourced from DOSM (Department of Statistics Malaysia). The number does not indicate whether it comprises of only citizens or includes foreign nationals. For now it is assumed that the data only represents citizens and permanent residents. 
+&emsp; The population data was provided as part of the dataset and is stated to have been sourced from DOSM (_Department of Statistics Malaysia_). The number does not indicate whether it comprises of only citizens or includes foreign nationals. For now it is assumed that the data only represents citizens and permanent residents. 
 
 <br><br><hr><br>  
 
@@ -897,11 +936,12 @@ scatter_vax_death_cases <- df_vax %>% select( date, dose1_cumul, dose2_cumul, ca
                             add_markers( x=~dose1_cumul, y=~cases_cumul, name="Dose 1",
                                          hovertemplate=~paste0( format(date, "%e %b %Y  %A"), "<br>",
                                                                 "<b>Dose 1:  %{x:,f}</b><br>",
-                                                                "<b>Cases:    %{y:,f}</b>", "<br>",
+                                                                "<b>Cases:     %{y:,f}</b>", "<br>",
                                                                 "<b>Deaths:   ", format(deaths_new, big.mark=","),
                                                                 "<extra></extra>"),
                                          marker = list( color="blue", symbol=200, 
-                                                        size=~deaths_new/4, opacity=0.3,
+                                                        sizemode = "diameter",
+                                                        size=~deaths_new/10, opacity=0.3,
                                                         line = list( color="blue"))
                                          ) %>%
                             add_markers( x=~dose2_cumul, y=~cases_cumul, name="Dose 2",
@@ -911,7 +951,8 @@ scatter_vax_death_cases <- df_vax %>% select( date, dose1_cumul, dose2_cumul, ca
                                                                 "<b>Deaths:   ", format(deaths_new, big.mark=","),
                                                                 "<extra></extra>"),
                                          marker = list( color="green", symbol=200, 
-                                                        size=~deaths_new/4, opacity=0.3,
+                                                        sizemode = "diameter",
+                                                        size=~deaths_new/10, opacity=0.3,
                                                         line = list( color="green"))
                                                         ) %>%
                             layout( title = "<br>Circle size represents daily deaths",
@@ -923,9 +964,9 @@ scatter_vax_death_cases
 
 ```
 
-&emsp; The chart above repesents the influence of vaccination on deaths. An important dimension that is included is the cumulative cases since deaths are also influenced by the case numbers since they are proportionate (more cases ~ more deaths). Another dimension in this chart is the rate of change, the distance between circles represent the daily increase for the respective axis e.g. <span style="color: blue;">Dose 1</span> is more spread out along the x-axis representing Cumulative Doses such as between 8 million and 10 million indicating a surge in vaccinations delivered per day. Similarly, if the circles are spread out in the vertical axis of Cumulative Cases, then it would represent a surge in daily cases. 
+&emsp; The chart above repesents the influence of vaccination on deaths. An important dimension included here is the cumulative cases since deaths are also influenced by the case numbers as they are proportionate (more cases ~ more deaths). Another dimension in this chart is the rate of change, the distance between circles represent the daily increase for the respective axis e.g. <span style="color: blue;">dose 1</span> is more spread out along the x-axis representing Cumulative Doses indicating a surge in vaccinations delivered per day, exemplified between 8 million and 10 million doses. Similarly, if the circles are spread out in the vertical axis of Cumulative Cases, then it would represent a surge in daily cases. 
 
-&emsp; The aim of this chart is to present a visual relationship of how vaccination influences deaths with the cases visible since it is related. As the vaccination continues, it is expected that deaths will decrease (circle size will decrease). Both <span style="color: blue;">dose 1</span> and <span style="color: green;">dose 2</span> data is presented here to determine significance between the doses. From the medical explanation, two doses provides the best likelihood of avoiding deaths, therefore it is expected that the 2nd dose will show smaller numbers as it moves towards the right. In the ideal scenario, the cases will rise slowly in the vertical axis while moving to the right quickly. 
+&emsp; The aim of this chart is to present a visual relationship of how vaccination influences deaths with the cases visible since it is related. As the vaccination continues, it is expected that deaths will decrease (circle size will decrease). Both <span style="color: blue;">dose 1</span> and <span style="color: green;">dose 2</span> data is presented here to determine significance between the doses. From the medical explanation, two doses provides the best likelihood of avoiding deaths, therefore it is expected that the 2nd dose will show less deaths as it moves towards the right. In the ideal scenario, the cases will rise slowly in the vertical axis while moving to the right quickly. 
 
 &emsp; Note the sequence of circle size are the same as they both represent the deaths for a given day. Cumulatives (totals) are used as observations are not matched (death are not directly linked to the cases for the day).
 
@@ -948,19 +989,20 @@ vax_3d_plot <-  df_vax %>%
                     as.data.frame() %>% filter( complete.cases(.)) %>% 
                     plot_ly( x=~doses, y=~cases_cumul, z=~deaths_new, 
                              type="scatter3d", mode="markers",
-                             marker = list( size=4),
+                             marker = list( size=3.5, opacity=0.8),
                              color=~Dose, colors = c('Blue', 'ForestGreen'),
                              hovertemplate=~paste0(format(date, "%e %b %Y  %A"), "<br>",
                                                    "<b>Cases:   %{y:,f}</b>", "<br>",
                                                    "<b>Doses:  %{x:,f}</b>", "<br>",
-                                                   "<b>%{zaxis.title.text}:  %{z:,f}</b>",
+                                                   "<b>Deaths:  %{z:,f}</b>",
                                                    "<extra></extra>")
                              ) %>% 
                     layout(scene = list(xaxis = list(title = '<b>Cumulative Doses</b>',
                                                      showexponent = "all", exponentformat = "B"),
                                         yaxis = list(title = '<b>Cumulative Cases</b>',
                                                      showexponent = "all", exponentformat = "B"),
-                                        zaxis = list(title = '<b>Daily Deaths</b>', tickformat = ",f")),
+                                        zaxis = list(title = '<b>Daily Deaths</b>', tickformat = ",f"),
+                                        camera = list( eye = list( x=-0.3, y=-2.3, z=1))),
                            legend = list( y = 0.95, itemsizing='constant') )
 vax_3d_plot
 
@@ -996,18 +1038,13 @@ max_unique_index <- df_national_checkin %>% filter( unique_ind == max(unique_ind
 
 &emsp;&emsp;The app was launched on 20th April 2020 as part of an effort to simplify contact tracing. Its use has also been expanded for vaccine registration. The published data for check-ins starts from 1st December 2020 until present.
 
-* The highest recorded unique check-ins per day was recorded on `r max_unique_index$date %>% format( "<b>%e %B %Y</b>")` at **`r max_unique_index$unique_ind %>% format( big.mark=",")`**. In comparison, the population of Malaysia is approximately 32.6 million and the population of Klang Valley (KL and Selangor) is approximately 8.3 million. 
+* The highest recorded unique individuals per day (based on check-ins) was recorded on `r max_unique_index$date %>% format( "<b>%e %B %Y</b>")` at __`r max_unique_index$unique_ind %>% format( big.mark=",")`__. In comparison, the population of Malaysia is approximately 32.6 million and the population of Klang Valley (KL and Selangor) is approximately 8.3 million. 
 * Manual handwritten entries are still allowed at most locations to provide an alternative.
 * There are some privacy concerns as the app requires the input of personal details. The app commits to only storing 90 days worth of data. However, personal details are still potentially stored on the device and/or server and may present a risk. 
   
 <br>  
-  
-&emsp;&emsp;In March 2020, [Covid Watch][covidwatch], a group of researchers, published a whitepaper detailing an automatic decentralized contact tracing mobile app that protects user anonymity. This has since received funding and has launched in the US. The app communicates via Bluetooth to nearby phones and exchanges random numbers (possibly hashes) as contact events. If a person is found positive, a code will be provided to the user to allow these random numbers to be uploaded to a server where other phones will check if any of their own random numbers matches. The app will notify the owner if they are a close contact. All of these data can be made public without any sensitive information being discovered as none was provided, not even the location.
 
-[covidwatch]: https://blog.covidwatch.org/en/covid-watch-whitepaper-using-crowdsourced-data-to-slow-virus-spread
-
-
-&emsp;&emsp;The data published is an aggregate at national or state level for daily intervals as to protect the privacy of users. However, with the granularity of data available to the authorities, it is possible to develop a graph network of infected cases by collating with the recorded cases. From there it would be possible to use machine learning to model the likelihood of infection for each individual based on the location and duration in any premises. Beyond that, model could be developed for specific locations given that an outbreak in a location is likely to repeat as the virus is passed on, especially now given that there is an increase in asymptomatic cases (this again reiterates the highly sensitive nature of the data being collected). Another potential data source could be an estimate of when the person was infected based on the viral load upon confirmation of a positive test. This would help to determine index cases and execute contact tracing more effectively. Furthermore, an analysis on the role of the environment as a factor in the infection rate may also be possible, such as a comparison of the numbers infected between office spaces versus wide shopping malls. 
+&emsp;&emsp;The MySejahtera data published is an aggregate at national or state level for daily intervals as to protect the privacy of users. However, with the granularity of data available to the authorities, it is possible to develop a graph network of infected cases by collating with the recorded cases. From there it would be possible to use machine learning to model the likelihood of infection for each individual based on the location and duration in any premises (this again reiterates the highly sensitive nature of the data being collected). Beyond that, another model could be developed for specific locations given that an outbreak in a location is likely to repeat as the virus is passed on, especially now given that there is an increase in asymptomatic cases. Another potential data source could be an estimate of when the person was infected based on the viral load upon confirmation of a positive test. This would help to determine index cases and execute contact tracing more effectively. Furthermore, an analysis on the role of the environment as a factor in the infection rate may also be possible, e.g. a comparison of the numbers infected between office spaces versus wide shopping malls. 
 
 Some potential sources of error include:
 
@@ -1017,6 +1054,14 @@ Some potential sources of error include:
 4. Any individual with more than one mobile phone. 
 
 <br>
+
+&emsp;&emsp;In March 2020, [Covid Watch][covidwatch], a group of researchers, published a whitepaper detailing an automatic decentralized contact tracing mobile app that protects user anonymity. This has since received funding and has launched in the US. The app communicates via Bluetooth to nearby phones and exchanges random numbers (possibly hashes) as contact events. If a person is found positive, a code will be provided to the user to allow these random numbers to be uploaded to a server where other phones will check if any of their own random numbers matches. The app will notify the owner if they are a close contact. All of these data can be made public without any sensitive information being discovered as none was provided, not even the location.
+
+[covidwatch]: https://blog.covidwatch.org/en/covid-watch-whitepaper-using-crowdsourced-data-to-slow-virus-spread
+
+
+
+
 
 
 ### Raw data
@@ -1042,12 +1087,12 @@ tsplot_mysj_data <- df_national_checkin %>% filter(complete.cases(.)) %>%
                                                       "<b>Unique Locations: %{y:,f}</b><br>",
                                                       "<extra></extra>")) %>% 
                     layout( # title = "MySejahtera dataset",
-                            xaxis = list( title = "Date", tickformat = "%e-%b-%Y<br>%A",
+                            xaxis = list( title = "<b>Date</b>", tickformat = "%e-%b-%Y<br>%A",
                                           domain = c(0,0.95), showspikes = T, showline = T, 
                                           spikemode = "across+toaxis", spikesnap = "data",
                                           spikedash = "solid", spikecolor = "grey", spikethickness = 0.8),
-                            yaxis = list( title = "", tickformat = ",f", range = c(-2*10^6, 35*10^6)),
-                            yaxis2 = list( title = "Locations", tickformat = ",f", 
+                            yaxis = list( title = "<b>Unique ID / Check-ins</b>", tickformat = ",f", range = c(-2*10^6, 35*10^6)),
+                            yaxis2 = list( title = "<b>Unique Locations</b>", tickformat = ",f", 
                                            side = "right", overlaying = "y", zeroline = F,
                                            range = c(-9.15*10^4, 1.6*10^6 ) ),
                             shapes = events_mysejahtera[[1]], annotations = events_mysejahtera[[2]],
@@ -1078,6 +1123,8 @@ __Observations:__
 ### Daily Numbers
 
 ```{r ts-national-checkins, out.width = '100%'}
+
+
 # compare check-ins with daily cases
 tsplot_checkin <- df_national_checkin %>% filter( complete.cases(.)) %>% 
                     plot_ly(type="scatter", mode="lines") %>% 
@@ -1099,8 +1146,8 @@ tsplot_checkin <- df_national_checkin %>% filter( complete.cases(.)) %>%
                                           showspikes = T, showline = T, 
                                           spikemode = "across+toaxis", spikesnap = "data",
                                           spikedash = "solid", spikecolor = "grey", spikethickness = 0.8 ),
-                            yaxis = list( title = "Daily Check-ins", tickformat = ",f", range = c(1.5*10^6, 35*10^6) ),
-                            yaxis2 = list( title= "Daily Cases", tickformat = ",f", range = c(-500, 19*10^3),
+                            yaxis = list( title = "Daily Check-ins", tickformat = ",f", range = c(10^5, 35*10^6) ),
+                            yaxis2 = list( title= "Daily Cases", tickformat = ",f", range = c(0, 35*10^3),
                                            side="right", overlaying="y", zeroline=F ),
                             shapes = events_mysejahtera[[1]], annotations = events_mysejahtera[[2]],
                             legend = list( y = 0.95, x = 1),
@@ -1112,7 +1159,7 @@ __Observations:__
 
 1. For the period where interstate travel was allowed, it is noticeable that <span style="color: red;">daily case numbers</span> and <span style="color: blue;">check-ins</span> are somehow correlated (moves upwards together).
 3. During MCO2, the two are inversely correlated (moves towards opposing directions).
-4. In MCO3, no relationship is apparent. The <span style="color: blue;">check-ins</span> are flat regardless of <span style="color: red;">case numbers</span>. These are potentially related to the business which are allowed to operate during this period. 
+4. In MCO3, no relationship is apparent. <span style="color: blue;">Check-ins</span> are slowly increasing but does not seem related to <span style="color: red;">case numbers</span>. These <span style="color: blue;">check-ins</span> are potentially related to the businesses which are allowed to operate during this period. 
 
 <br>  
 
@@ -1241,8 +1288,8 @@ tsplot_checkin_per_id <- df_national_checkin %>%
                             layout( #title = "Daily MysSejahtera check-ins per unique ID",
                                     xaxis = list( title = "Date", tickformat = "%e-%b-%Y<br>%A", 
                                                   domain = c( 0, .975)),
-                                    yaxis = list( title = "Check-ins per ID", range=c(1.3, 3.5), tickformat = ".2f"),
-                                    yaxis2 = list( title= "Daily Cases", side="right",
+                                    yaxis = list( title = "Check-ins per ID", range=c(1.2, 3.5), tickformat = ".2f"),
+                                    yaxis2 = list( title= "Daily Cases", side="right", range=c(0, 2.5*10^4),
                                                    overlaying="y", tickformat = ","),
                                     shapes = events_mysejahtera[[1]], annotations = events_mysejahtera[[2]],
                                     legend = list( y = 0.95)
@@ -1250,7 +1297,7 @@ tsplot_checkin_per_id <- df_national_checkin %>%
 tsplot_checkin_per_id
 ```
 
-&emsp;&emsp;The chart above describes the <span style="color: blue;">**average** number of check-ins per person</span>. It is derived from dividing the total check-in by the active unique ID in a day. 
+&emsp;&emsp;The chart above describes the<span style="color: blue;"> __average__ number of check-ins per person</span>. It is derived from dividing the total check-in by the active unique ID in a day. 
 
 <br>
 
@@ -1270,7 +1317,7 @@ __Observations:__
 
 
 
-
+    
 
 
 ### Check-ins per Location
@@ -1297,20 +1344,20 @@ tsplot_checkin_per_loc <- df_national_checkin %>%
                                                   domain = c( 0, .975)),
                                     yaxis = list( title = "Check-ins per Location", range = c(0,55)),
                                     yaxis2 = list( title= "Daily Cases", tickformat = ",f",
-                                                   range = c(0,2.2*10^4), side="right", overlaying="y" ),
+                                                   range = c(0,2.5*10^4), side="right", overlaying="y" ),
                                     shapes = events_mysejahtera[[1]], annotations = events_mysejahtera[[2]],
                                     legend = list( y = 0.95)
                             )
 tsplot_checkin_per_loc    
 ```    
-&emsp;&emsp;The chart above describes the <span style="color: blue;">**average** number of check-ins per active unique location</span>. It is derived from dividing the total check-in by the active unique locations in a day. While the dataset specifies that the unique location indicates premises, conservatively it is possible to assume each QR code represents a specific location instead of an entire premise. This will affect the understanding of the data since if a person is going to several shops within a premise (e.g. supermarket + restaurant + pharmacy), ideally these are considered as a single location yet this quite possibly is not the case. 
+&emsp;&emsp;The chart above describes the<span style="color: blue;"> __average__ number of check-ins per active unique location</span>. It is derived from dividing the total check-in by the active unique locations in a day. While the dataset specifies that the unique location indicates premises, conservatively it is possible to assume each QR code represents a specific location instead of an entire premise. This will affect the understanding of the data since if a person is going to several shops within a premise (e.g. supermarket + restaurant + pharmacy), ideally these are considered as a single location yet this quite possibly is not the case. 
 
 <br>
 
 __Observations:__  
 
-1. Spikes in the <span style="color: blue;">average number of check-ins per location</span> occur every Sunday and are up to almost double prior to MCO3. 
-2. During MCO3, the spikes are more subdued at approximately 50% increase with a stable trend.
+1. Prior to MCO3, spikes in the <span style="color: blue;">average number of check-ins per location</span> occur every Sunday and are up to almost double. 
+2. During MCO3, the spikes are more subdued at approximately 1/3 increase with a stable trend.
 3. There is no sharp increase prior to MCO3 as observed in other charts. Indicating that while people are still out and moving around, they are not concentrating at the same places (reminder this is again at an aggregate level, concentration may still occur at specific locations).
 
 
@@ -1391,6 +1438,8 @@ tsplot_tod_timeseries
 # 2 2021-01-13  139
 # 3 2021-06-01   62
 
+# !!! REFACTOR !!!
+
 date_cols <- colnames(df_tod_checkins) %>% grep("-",.,value=T) 
 
 run_length <- date_cols[ which( date_cols >= events_x_school$data$date[3])] %>% length
@@ -1432,11 +1481,11 @@ plot_DoD
 
 __Observations:__  
 
-1. The spike between 8:30am to 11:30am is the prior to <span style="color: green;">MCO3</span> on 31st May 2021. The bulk of check-ins on this day are between 5am to 12 noon. In the raw data chart previously, this did not show up a spike in the data as the total checkins for the day are still average. 
-2. Similar half day data drop offs are seen between 27th - 30th May 2021 (indicating this is possible error in the data). 
-3. There is a progression in terms of when people ended their day, especially in <span style="color: green;">MCO3</span> where the check-ins drop off earlier circa 830pm as shops are supposed to be closed at 8pm. This indicates good overall compliance by MySejahtera users. 
+1. The spike between 8:30am to 11:30am is the day prior to <span style="color: green;">MCO3</span> on 31st May 2021. The bulk of check-ins on this day are between 5am to 12 noon. In the raw data chart previously, this did not show up a spike in the data as the total checkins for the day are still average. 
+2. Similar half day data drop offs are seen between 27th - 30th May 2021 (this is possibly an error in the data). 
+3. There is a change in terms of when people ended their day, especially in <span style="color: green;">MCO3</span> where the check-ins drop off earlier circa 830pm as shops are supposed to be closed at 8pm. This indicates good overall compliance by MySejahtera users. 
 4. Check-ins at night are interesting as these seem to indicate some varying degrees of what can only be assumed as night shift work.
-5. Interestingly, for the period before 1pm the check-ins for <span style="color: green;">MCO3</span> are well above the check-ins when <span style="color: red;">interstate travel was allowed</span>. It is expected to drop more significantly as there were more locations that would have been open. 
+5. Interestingly, for the period before 1pm the check-ins for <span style="color: green;">MCO3</span> are well above the check-ins when <span style="color: red;">interstate travel was allowed</span>. It is expected to drop more significantly as there were more locations that would have been closed during <span style="color: green;">MCO3</span>. 
 
   
 <br><br>    
@@ -1454,8 +1503,8 @@ __Observations:__
 ### Changes over time
 
 ```{r tod-changes, out.width = '100%'}
-sec_legend <- list( c( 0.95, "<span style='color: red;'>&#9899;</span> 7am-7pm"),
-                    c( 0.9, "<span style='color: blue;'>&#9899;</span> 8pm - 6am")) %>% 
+sec_legend <- list( c( 0.81, "<span style='color: red;'>7am-7pm</span>"),
+                    c( 0.76, "<span style='color: blue;'>8pm-6am</span>")) %>% 
                 lapply( function(k){ list( x = 0.91, y = k[1], xref = "paper", yref = "paper",
                                            text = k[2], showarrow = F, 
                                            xanchor = "left", font = list( size = 14))})
@@ -1540,7 +1589,9 @@ surface_plot <-  df_3d %>%
                              ) %>% 
                     layout(scene = list(xaxis = list(title = 'Date', tickformat = "%e %b %Y"),
                                         yaxis = list(title = 'Time of Day', tickformat = "%H:%M"),
-                                        zaxis = list(title = 'Check-ins', tickformat = ",f")))
+                                        zaxis = list(title = 'Check-ins', tickformat = ",f")),
+                            camera = list( eye = list( x = ))
+                           )
 surface_plot
 
 

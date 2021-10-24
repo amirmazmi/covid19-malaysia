@@ -50,7 +50,7 @@ dir_vaccine <- "repo citf-public"
 ```
 
 ---  
-author: `r paste(params$set_author, "<br>Last updated ", format(today(),'%e %b %Y'), "<br><br><hr>")`
+author: `r paste(params$set_author, "<br>Last updated  ", format(today(),'%e %b %Y'), "<br><br><hr>")`
 ---  
 
 
@@ -218,19 +218,19 @@ df_pop <- read.csv( file.path( dir_vaccine, "static", "population.csv"),
 df_vax <- read.csv( file.path( dir_vaccine, "vaccination", "vax_malaysia.csv"),
                     stringsAsFactors=F) %>% 
             mutate( date = ymd(date),
-                    total_MA14 = roll_meanr( total_daily, 14),
-                    dose1_MA14 = roll_meanr( dose1_daily, 14),
-                    dose2_MA14 = roll_meanr( dose2_daily, 14)) %>% 
+                    total_MA14 = roll_meanr( daily, 14),
+                    dose1_MA14 = roll_meanr( daily_partial, 14),
+                    dose2_MA14 = roll_meanr( daily_full, 14)) %>% 
             full_join( df_reg %>% select(date, total_reg), by="date") %>% 
             full_join( df_cases_deaths %>% select(date, cases_new, cum_cases, deaths_new, cum_deaths, ), by="date") %>% 
             # full_join( df_cases, by="date") %>% 
             rename( cases_cumul=cum_cases, deaths_cumul=cum_deaths) %>% 
-            mutate( dose1_pop_perc = (( dose1_cumul/df_pop$pop[1]) * 100) %>% round(2),
-                    dose2_pop_perc = (( dose2_cumul/df_pop$pop[1]) * 100) %>% round(2),
+            mutate( dose1_pop_perc = (( cumul_partial/df_pop$pop[1]) * 100) %>% round(2),
+                    dose2_pop_perc = (( cumul_full/df_pop$pop[1]) * 100) %>% round(2),
                     total_reg_pop_perc = ((total_reg/df_pop$pop[1]) * 100) %>% round(2),
-                    rem_dose1 = total_reg - dose1_cumul,
-                    rem_dose2 = total_reg - dose2_cumul,
-                    rem_total = total_reg*2 - total_cumul,
+                    rem_dose1 = total_reg - cumul_partial,
+                    rem_dose2 = total_reg - cumul_full,
+                    rem_total = total_reg*2 - cumul,
                     rem_dose1_pop_perc = (( rem_dose1/df_pop$pop[1]) * 100) %>% round(2),
                     rem_dose2_pop_perc = (( rem_dose2/df_pop$pop[1]) * 100) %>% round(2),
             ) %>% 
@@ -452,7 +452,7 @@ Generally, Bollinger Bands are used to describe the price movement (forex/stocks
 ```{r death-vs-cases, out.width = '100%'}
 events_no_school <- events_gen( exclude="2021-03-01")$data
 
-yaxis_control <- (( 3 + (df_cases_deaths$cum_cases %>% max) %/% 10^4 ) ) *10^4
+yaxis_control <- (( 10 + (df_cases_deaths$cum_cases %>% max) %/% 10^4 ) ) *10^4
 ls_death_rate <- seq(0.01, 0, by=-0.002) %>% lapply( function(x){ x*yaxis_control})
 marker_cols <- nrow(events_no_school) %>% (brewer.pal( 8, "Dark2") %>% colorRampPalette(colors=.))    # c("orange", "green", "dodgerblue") 
 line_colors <- 5 %>% (brewer.pal( 9, "Greens") %>%  colorRampPalette(colors=.)) %>% rev
@@ -474,7 +474,8 @@ for( k in seq(nrow(events_no_school))){
                                                                     "Daily deaths: ", deaths_new, "<br>",
                                                                     "Daily cases:  ", format(cases_new, big.mark=","), "<br>",
                                                                     "Cumul. Deaths:     %{y: ,f}", "<br>", 
-                                                                    "Cumul. Cases:  %{x: ,f}" )
+                                                                    "Cumul. Cases:  %{x: ,f}", "<br>",
+                                                                    "Rate:    ", sprintf( (deaths_new/cases_new)*100, fmt='%#.2f'), "%")
                                              )
 }
 for( i in seq(0.012, 0.002, by=-0.002)){
@@ -501,7 +502,7 @@ Each circle represents daily data. Cumulatives (or totals) are used as the cases
 __Observations:__  
 
 1. Initially, the trend starts at a very high rate and slowly settles to around 0.4% at the end of December 2020. Later on around May 2021, this deviates upwards to currently just above 0.8% death rate. 
-2. The distance between the circles indicates the speed at which the axis increases. If the distance between cirlces in the x-axis is spread out, means that Cumulative Cases are increasing rapidly and the opposite is true.
+2. The distance between the circles indicates the speed at which the axis increases. If the distance between circles in the x-axis is spread out, means that Cumulative Cases are increasing rapidly and the opposite is true.
 3. Notably, <span style="color: green;">MCO2</span> and followed by <span style="color: blue;">MCO3</span> has seen an increase in cases and and deaths rapidly given the circles are more spread out as compared to the previous periods. 
 4. As of 10th August 2021, 8 states have moved into <span style="color: black;">Phase 2</span>, however, the death rate is continuing to rise.  
 
@@ -626,14 +627,18 @@ scatterplot_test_dailycases <- scatterplot_test_dailycases %>%
                                              marker=list(size=10, symbol=100, color="green"),
                                              text = ~paste0( format(date, "%e %b %Y %A"), "<br><b>",
                                                              "Total tests:  ", format( total, big.mark=","), "<br>", 
-                                                             "Daily cases:   ", format( cases_new, big.mark=","), "</b>" ),
+                                                             "Daily cases:   ", format( cases_new, big.mark=","),"<br>", 
+                                                             "Rate:   ", sprintf( (cases_new/total)*100, fmt='%#.2f', "%"),
+                                                             "</b>" ),
                                              hoverinfo = "text" ) %>% 
                                 add_markers( x=~cases_new, y=~total,
                                              name="Recent 10 days<br>Positive Tests ", data=df_last10days,
                                              marker=list(size=10, symbol=100, color="red"),
                                              text = ~paste0( format(date, "%e %b %Y %A"), "<br><b>",
                                                              "Total tests:  ", format( total, big.mark=","), "<br>", 
-                                                             "Daily cases:   ", format( cases_new, big.mark=","), "</b>" ),
+                                                             "Daily cases:   ", format( cases_new, big.mark=","),"<br>", 
+                                                             "Rate:   ", sprintf( (cases_new/total)*100, fmt='%#.2f', "%"),
+                                                             "</b>" ),
                                              hoverinfo = "text" ) %>% 
                                 add_segments( x = 0, xend=perc5_line*1.1*0.05,
                                               y = 0, yend=perc5_line*1.1,
@@ -642,11 +647,15 @@ scatterplot_test_dailycases <- scatterplot_test_dailycases %>%
                                 add_segments( x = 0, xend=perc5_line*1.1*0.10,
                                               y = 0, yend=perc5_line*1.1,
                                               name="10% Positive", mode="lines", marker=NULL,
-                                              line=list(width=1.5, dash="dot", color="royalblue") ) %>% 
+                                              line=list(width=1.5, dash="dot", color="purple") ) %>% 
                                 add_segments( x = 0, xend=perc5_line*0.9*0.15,
                                               y = 0, yend=perc5_line*0.9,
                                               name="15% Positive", mode="lines", marker=NULL,
-                                              line=list(width=1.5, dash="dot", color="purple") ) %>% 
+                                              line=list(width=1.5, dash="dot", color="royalblue") ) %>%
+                                add_segments( x = 0, xend=perc5_line*0.7*0.2,
+                                              y = 0, yend=perc5_line*0.7,
+                                              name="20% Positive", mode="lines", marker=NULL,
+                                              line=list(width=1.5, dash="dot", color="brown") ) %>% 
                                 layout( #title = "Line shows min tests required for 5% positive rate",
                                         xaxis = list( title = "Daily new cases", tickformat = ",f"),
                                         yaxis = list ( title = "Total tests", tickformat = ",f"),
@@ -717,9 +726,9 @@ The program began on 24th February 2021 and is split into 3 phases<sup>1</sup>.
 # plot vaccination daily
 tsplot_vax <- df_vax %>% 
                 # select(date, dose1_daily, dose2_daily, dose1_MA14, dose2_MA14, total_daily, total_MA14) %>% 
-                filter( !is.na(total_daily)) %>% 
+                filter( !is.na(daily)) %>% 
                 plot_ly( type = "scatter", mode = "lines") %>% 
-                add_lines( x=~date, y=~dose1_daily, name="Dose 1", 
+                add_lines( x=~date, y=~daily_partial, name="Dose 1", 
                            hovertemplate = paste0("%{x|%e %b %Y  %A}", "<br>",
                                                 "<b>Dose 1:  %{y:,f}</b>",
                                                 "<extra></extra>"),
@@ -729,7 +738,7 @@ tsplot_vax <- df_vax %>%
                                                   "<b>Moving Average:  %{y:,f}</b>",
                                                   "<extra></extra>"),
                            line = list( color="blue", width=2)) %>% 
-                add_lines( x=~date, y=~dose2_daily, name="Dose 2", 
+                add_lines( x=~date, y=~daily_full, name="Dose 2", 
                            hovertemplate = paste0("%{x|%e %b %Y  %A}", "<br>",
                                                   "<b>Dose 2:  %{y:,f}</b>",
                                                   "<extra></extra>"),
@@ -739,7 +748,7 @@ tsplot_vax <- df_vax %>%
                                                   "<b>Moving Average:  %{y:,f}</b>",
                                                   "<extra></extra>"),
                            line = list( color="green", width=2)) %>% 
-                add_lines( x=~date, y=~total_daily, name="Total Daily Doses<br>Administered", 
+                add_lines( x=~date, y=~daily, name="Total Daily Doses<br>Administered", 
                            hovertemplate = paste0("%{x|%e %b %Y  %A}", "<br>",
                                                   "<b>Total Daily Doses Administered:  %{y:,f}</b>",
                                                   "<extra></extra>"),
@@ -786,7 +795,7 @@ ls_shape <- events_vaccine$shapes %>% append( list( hline( df_pop$pop_18[1], "bl
 # events_vaccine$shapes[[3]] <- hline( df_pop$pop[1], "black", dash = "dash")
 
 ls_annotations <- events_vaccine$annotations %>% 
-                    append( list(text_labels( xloc=0.1, yloc=(df_pop$pop_18[1]*1.02), x_ref="paper", y_ref="y", 
+                    append( list(text_labels( xloc=0.1, yloc=(df_pop$pop_18[1]*1.03), x_ref="paper", y_ref="y", 
                                          label="Above 18 Population", anchor="left",
                                          showarrow=F, font=14)))
 # events_vaccine$annotations[[3]] <- text_labels( xloc=0.1, yloc=df_pop$pop[1]*1.03, x_ref="paper", y_ref="y",
@@ -800,7 +809,7 @@ cumplot_vax <- df_vax %>%
                            hovertemplate = paste0("<b>Registered:  %{y:,f}</b>",
                                                   "<extra></extra>"),
                            line = list( color="red", width=5)) %>%
-                add_lines( x=~date, y=~dose1_cumul, name="Dose 1", 
+                add_lines( x=~date, y=~cumul_partial, name="Dose 1", 
                            hovertemplate = paste0("<b>Dose 1:  %{y:,f}</b>",
                                                   "<extra></extra>"),
                            line = list( color="blue", width=1.5)) %>% 
@@ -808,7 +817,7 @@ cumplot_vax <- df_vax %>%
                            hovertemplate = paste0("<b>Remaining for Dose 1:  %{y:,f}</b>",
                                                   "<extra></extra>"),
                            line = list( color="blue", width=1.5, dash="dot")) %>% 
-                add_lines( x=~date, y=~dose2_cumul, name="Dose 2", 
+                add_lines( x=~date, y=~cumul_full, name="Dose 2", 
                            hovertemplate = paste0("<b>Dose 2:  %{y:,f}</b>",
                                                   "<extra></extra>"),
                            line = list( color="green", width=1.5)) %>% 
@@ -816,7 +825,7 @@ cumplot_vax <- df_vax %>%
                            hovertemplate = paste0("<b>Remaining for Dose 2:  %{y:,f}</b>",
                                                   "<extra></extra>"),
                            line = list( color="green", width=1.5, dash="dot")) %>% 
-                add_lines( x=~date, y=~total_cumul, name="Total Doses", 
+                add_lines( x=~date, y=~cumul, name="Total Doses", 
                            hovertemplate = paste0("<b>Total doses:  %{y:,f}</b>",
                                                   "<extra></extra>"),
                            line = list( color="orange", width=2)) %>%
@@ -865,6 +874,16 @@ __Observations:__
 
 ```{r vax-percent-pop, out.width = '100%'}
 # cumulative plot vaccination daily - % population
+
+pop_above_18 <- 100 * ((df_pop$pop_18[1]/df_pop$pop[1]) %>% round(digits=4))
+ls_shape1 <- events_vaccine$shapes %>% append( list( hline( pop_above_18, "black", width = 1.5, dash = "longdash")))
+# events_vaccine$shapes[[3]] <- hline( df_pop$pop[1], "black", dash = "dash")
+
+ls_annotations1 <- events_vaccine$annotations %>% 
+                    append( list(text_labels( xloc=0.1, yloc=( pop_above_18*1.03), x_ref="paper", y_ref="y", 
+                                         label=paste("Above 18 Population [", pop_above_18, "% ]"),
+                                         anchor="left", showarrow=F, font=14)))
+
 cumplot_perc_pop_vax <- df_vax %>% 
                         plot_ly( type = "scatter", mode = "lines") %>% 
                         add_lines( x=~date, y=~total_reg_pop_perc, name="Registered for<br>Vaccination", 
@@ -892,8 +911,9 @@ cumplot_perc_pop_vax <- df_vax %>%
                                               showspikes = T, showline = T, 
                                               spikemode = "across", spikesnap = "data",
                                               spikedash = "solid", spikecolor = "grey", spikethickness = 0.8),
-                                yaxis = list ( title = "<b>Percent of Population  [ % ]</b>", tickformat = ",f%"),
-                                shapes = events_vaccine[[1]], annotations = events_vaccine[[2]],
+                                yaxis = list ( title = "<b>Percent of Population  [ % ]</b>", tickformat = ",f%",
+                                               range = c(-5, 85)),
+                                shapes = ls_shape1, annotations = ls_annotations1,
                                 hovermode = "x", legend = list( y = 0.95)
                         )
 cumplot_perc_pop_vax
@@ -930,10 +950,10 @@ __Observations:__
 ```{r vax-cases-deaths, out.width = '100%'}
 # cumulative cases vs cumulative vaccinations ( death as size)
 #   split by event
-scatter_vax_death_cases <- df_vax %>% select( date, dose1_cumul, dose2_cumul, cases_cumul, deaths_new) %>% 
+scatter_vax_death_cases <- df_vax %>% select( date, cumul_partial, cumul_full, cases_cumul, deaths_new) %>% 
                             filter( complete.cases(.)) %>%
                             plot_ly( type="scatter", mode="markers") %>% 
-                            add_markers( x=~dose1_cumul, y=~cases_cumul, name="Dose 1",
+                            add_markers( x=~cumul_partial, y=~cases_cumul, name="Dose 1",
                                          hovertemplate=~paste0( format(date, "%e %b %Y  %A"), "<br>",
                                                                 "<b>Dose 1:  %{x:,f}</b><br>",
                                                                 "<b>Cases:     %{y:,f}</b>", "<br>",
@@ -944,7 +964,7 @@ scatter_vax_death_cases <- df_vax %>% select( date, dose1_cumul, dose2_cumul, ca
                                                         size=~deaths_new/10, opacity=0.3,
                                                         line = list( color="blue"))
                                          ) %>%
-                            add_markers( x=~dose2_cumul, y=~cases_cumul, name="Dose 2",
+                            add_markers( x=~cumul_full, y=~cases_cumul, name="Dose 2",
                                          hovertemplate=~paste0( format(date, "%e %b %Y  %A"), "<br>",
                                                                 "<b>Dose 2:  %{x:,f}", "</b><br>",
                                                                 "<b>Cases:   %{y:,f}","</b><br>",
@@ -983,8 +1003,8 @@ scatter_vax_death_cases
 
 ```{r vax-3d, out.width = '100%'}
 vax_3d_plot <-  df_vax %>% 
-                    select( date, cases_new, cases_cumul, dose1_cumul, dose2_cumul, deaths_new ) %>% 
-                    rename( Dose_1=dose1_cumul, Dose_2=dose2_cumul) %>% 
+                    select( date, cases_new, cases_cumul, cumul_partial, cumul_full, deaths_new ) %>% 
+                    rename( Dose_1=cumul_partial, Dose_2=cumul_full) %>% 
                     pivot_longer( cols=starts_with("Dose_"), names_to="Dose", values_to="doses") %>% 
                     as.data.frame() %>% filter( complete.cases(.)) %>% 
                     plot_ly( x=~doses, y=~cases_cumul, z=~deaths_new, 
@@ -1442,15 +1462,16 @@ tsplot_tod_timeseries
 
 date_cols <- colnames(df_tod_checkins) %>% grep("-",.,value=T) 
 
-run_length <- date_cols[ which( date_cols >= events_x_school$data$date[3])] %>% length
+run_length <- date_cols[ which( date_cols >= events_x_school$data$date[ nrow(events_x_school$data) ])] %>% length
 
-line_pal <- list( c( 43, "Reds"), c( 139, "Blues"), c( run_length, "Greens") ) %>% 
+line_pal <- list( c( 43, "Reds"), c( 139, "Blues"), c( 70, "Greens"), c(run_length, "Purples") ) %>% 
                 lapply( function(x){ x[1] %>%  (brewer.pal( 9, x[2])[3:7] %>%  colorRampPalette(colors=.))}) %>% 
                 unlist()
 date_cols <- date_cols %>% cbind( line_pal ) %>% as.data.frame( stringsAsFactors=F) %>% setNames( c("date","line_col"))
 sec_legend <- list( c( 1.87*10^6, "Interstate Travel Allowed", "red"),
-                    c( 1.8*10^6 ,"MCO2", "blue"),
-                    c( 1.73*10^6 ,"MCO3", "green")) %>% 
+                    c( 1.8*10^6 , "MCO2", "blue"),
+                    c( 1.73*10^6, "MCO3", "green"),
+                    c( 1.66*10^6, "Phase 2 & 3", "purple") ) %>% 
                 lapply( function(k){ list( x = "2021-01-01 15:00", y = k[1],
                                            text = k[2], showarrow = F,
                                            xanchor = "left", font = list( size = 14, color =k[3]))})
